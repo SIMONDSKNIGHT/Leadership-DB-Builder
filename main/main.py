@@ -11,7 +11,7 @@ import time
 
 file_path = "/Users/dagafed/Library/CloudStorage/OneDrive-Personal/Documents/top 500 by liquidity.xlsx"
 rest_server_url = 'https://api.edinet-fsa.go.jp/api/v2/documents'
-api_key = "ce7040824a7b414e9328a6edc0e82200"
+
 
 def write_csv(file_ids, filename):
     with open(filename, 'w', newline='') as csvfile:
@@ -20,6 +20,13 @@ def write_csv(file_ids, filename):
         writer.writerows(file_ids)
 #I know this is not best practice but this only needs to be run once
 def main():
+    try:
+        with open("main/api_key.txt", "r") as file:
+            api_key = file.read()
+    except FileNotFoundError:
+        print("api_key.txt not found.")
+        api_key=input("Input API key and press Enter to continue.")
+
     parser = argparse.ArgumentParser(description="Determine behavior based on an input number.")
     
     # Add a positional argument for the number
