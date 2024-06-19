@@ -8,6 +8,7 @@ import argparse
 import csv
 import sys
 import time
+import os
 
 file_path = "/Users/dagafed/Library/CloudStorage/OneDrive-Personal/Documents/top 500 by liquidity.xlsx"
 rest_server_url = 'https://api.edinet-fsa.go.jp/api/v2/documents'
@@ -31,8 +32,11 @@ def main():
     
     # Add a positional argument for the number
     parser.add_argument('number', type=int, help="A number to determine behavior",default=1)
+    parser.add_argument('--forceupdate', action='store_true', help="Update the list of reports")
     args = parser.parse_args()
     number = args.number
+    
+
 
     reader = excel_reader.ExcelReader()
     rest_server = rest_api.RestApiInterface(rest_server_url, api_key)
@@ -44,27 +48,44 @@ def main():
 
     tagger.add_edinet_code_to_file_ids()
 
-    startdate ="2023/04/01"
-
-    enddate = "2024/06/01"
-    if number != 1:
-        parsedstart = datetime.datetime.strptime(startdate, "%Y/%m/%d")
-
-        parsedend = datetime.datetime.strptime(enddate, "%Y/%m/%d")
-        
-        output = rest_server.search_reports(parsedstart, parsedend, mode=2)
-        startdate = startdate.replace("/", "-")
-        enddate = enddate.replace("/", "-") 
-        with open(startdate+"~"+enddate+".txt", "w") as file:
-            file.write(json.dumps(output, indent=4,ensure_ascii=False))
-
-        print("downloaded info from "+startdate+" to "+enddate)
-        sys.exit(0)
+    
+    #todays date
+    enddate = datetime.datetime.now().strftime("%Y/%m/%d")
+    #5 quarters ago
+    startdate = (datetime.datetime.now() - datetime.timedelta(days=457)).strftime("%Y/%m/%d")
+    #TODO Change Logic so that on startup it downloads 5 quarters of reports IF folder does not exist; if it exists, find the most recent folder and download for after this date
+    #figure out the most recent previous update that was completed
+    if args.forceupdate:
+        startdate = (datetime.datetime.now() - datetime.timedelta(days=457)).strftime("%Y/%m/%d")
     else:
-        startdate = startdate.replace("/", "-")
-        enddate = enddate.replace("/", "-") 
-        with open(startdate+"~"+enddate+".txt", "r") as file:
-            output = json.load(file)
+        try:
+            file_names = os.listdir("json")
+            latest_file = max(file_names, key=os.path.getctime)
+            #name format is "2023-04-01~2024-06-01.txt"
+            startdate = latest_file.split("~")[1].split(".")[0].replace("-", "/")
+            startdate = (datetime.datetime.strptime(startdate, "%Y/%m/%d") + datetime.timedelta(days=1)).strftime("%Y/%m/%d")
+        except FileNotFoundError:
+            print("No past JSON files found. Downloading reports for 5 quarters.")
+            startdate = (datetime.datetime.now() - datetime.timedelta(days=457)).strftime("%Y/%m/%d")
+
+    
+    parsedstart = datetime.datetime.strptime(startdate, "%Y/%m/%d")
+
+    parsedend = datetime.datetime.strptime(enddate, "%Y/%m/%d")
+    
+    output = rest_server.search_reports(parsedstart, parsedend, mode=2)
+    if output=={}:
+        print("no reports found OR dates are invalid. Exiting...")
+        print(f"startdate: {startdate}, enddate: {enddate}. Check that startdate is before enddate.")
+        sys.exit(0)
+    startdate = startdate.replace("/", "-")
+    enddate = enddate.replace("/", "-") 
+    with open("/json/"+startdate+"~"+enddate+".txt", "w") as file:
+        file.write(json.dumps(output, indent=4,ensure_ascii=False))
+
+    print("downloaded info from "+startdate+" to "+enddate)
+    sys.exit(0)
+
     
     doc_id_list = []
     
@@ -82,15 +103,23 @@ def main():
         if this_output['results']==[]:
             print(f" failed to find yearly report for 2022/23 for {name}")
         else:
+            folder_path = f'files/{id}'
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
             for i in this_output['results']:
+                if not os.path.exists(f'files/{id}/{i["docID"]}_info.txt'):
+                    with open(f'files/{id}/{i["docID"]}_info.txt', 'w') as file:
+                        file.write(json.dumps(i, indent=4,ensure_ascii=False))
                 doc_id_list.append((id,name,i["docDescription"],i['docID']))
         # Write doc_id_list to a JSON file
         
         
-    rbool=input("download reports?")
-    if rbool.lower() != "yes" or rbool.lower() != "y":
+        
+    rbool=input("download reports?:")
+    if rbool.lower() != "yes" and rbool.lower() != "y":
+        print("exiting...")
         sys.exit(0)
-
+    print("downloading...")
 
     write_csv(doc_id_list, "doc_id_list.csv")
 

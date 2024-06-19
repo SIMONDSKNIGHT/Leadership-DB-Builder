@@ -37,11 +37,11 @@ def match_names(h_file, doc_id_list):
                     print(name)
             sys.exit(1)
 
-    with open('matched_doc_id_list.csv', 'w', newline='') as output_file:
+    with open('rejected.csv', 'w', newline='') as output_file:
         csv_writer = csv.writer(output_file)
         csv_writer.writerows(matched_names)
 
     print("Matching names completed. The matched names are saved in 'matched_doc_id_list.csv'.")
 
 if __name__ == '__main__':
-    match_names('h.txt', 'file_ids.csv')
+    match_names('rejected.txt', 'file_ids.csv')

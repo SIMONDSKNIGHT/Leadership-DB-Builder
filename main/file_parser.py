@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 
-class file_parser(ABC):
+class FileParser(ABC):
+    @abstractmethod
+    def parse(self):
+        pass
     @abstractmethod
     def find_leadership(self):
         pass

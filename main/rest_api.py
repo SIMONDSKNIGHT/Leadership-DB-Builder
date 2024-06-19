@@ -3,6 +3,8 @@ import requests
 import datetime 
 from datetime import date
 import time
+import os
+from tqdm.auto import tqdm
 
 class RestApiInterface:
     def __init__(self, rest_server_url, api_key):
@@ -34,22 +36,29 @@ class RestApiInterface:
         return json_data
 
     def download_reports(self, doc_id_list, mode=1):
-        for item in doc_id_list:
+        for item in tqdm(doc_id_list):
             doc_id = item[3]
             tse_no = item[0]
+            # Check if folder exists for this doc_id
+
             self.download_report(doc_id,mode,tse_no)
-            time.sleep(0.1)
+            
         return "Downloaded all reports."
             
     def download_report(self, doc_id,mode,tse_no):
-        response = requests.get(f'{self.rest_server_url}/{doc_id}?type={mode}&Subscription-Key={self.api_key}')
         if mode == 2:
             extension = 'pdf'
         else:
             extension = 'zip'
+        local_filename = f'files/{tse_no}/{doc_id}.{extension}'
+        if os.path.exists(local_filename):
+            print(f"File {local_filename} already exists. Skipping download.")
+            return
+        time.sleep(0.5)
+        response = requests.get(f'{self.rest_server_url}/{doc_id}?type={mode}&Subscription-Key={self.api_key}')
+
         
         
-        local_filename = f'files/{tse_no}-{mode}.{extension}'
 
         # Open the file in write-binary mode and write the content
         with open(local_filename, 'wb') as file:
