@@ -160,6 +160,8 @@ output.txt
 h.txt
 output.txt
 2023-04-01~2024-06-01.txt
-*.csv
+
 doc_id_list.csv
+doc_id_list_with_edinet.csv
+doc_id_list.txt
 file_ids.csv
