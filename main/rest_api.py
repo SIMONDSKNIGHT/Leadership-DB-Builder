@@ -23,7 +23,7 @@ class RestApiInterface:
             results['results']+=((self.get_response(current_date,mode)['results']))
             # Move to the next day
             current_date = current_date + datetime.timedelta(days=1)
-            time.sleep(1)
+            time.sleep(0.1)
         return results
     def get_response(self, date, mode=1):
         formatted_date = date.strftime('%Y-%m-%d')
@@ -37,11 +37,11 @@ class RestApiInterface:
         for item in doc_id_list:
             doc_id = item[3]
             tse_no = item[0]
-            self.download_report(doc_id,mode)
-            time.sleep(1)
+            self.download_report(doc_id,mode,tse_no)
+            time.sleep(0.1)
         return "Downloaded all reports."
             
-    def download_report(self, doc_id,mode):
+    def download_report(self, doc_id,mode,tse_no):
         response = requests.get(f'{self.rest_server_url}/{doc_id}?type={mode}&Subscription-Key={self.api_key}')
         if mode == 2:
             extension = 'pdf'
@@ -49,7 +49,7 @@ class RestApiInterface:
             extension = 'zip'
         
         
-        local_filename = f'files/{doc_id}-{mode}.{extension}'
+        local_filename = f'files/{tse_no}-{mode}.{extension}'
 
         # Open the file in write-binary mode and write the content
         with open(local_filename, 'wb') as file:

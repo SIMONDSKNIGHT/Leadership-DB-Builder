@@ -154,3 +154,12 @@ cython_debug/
 file_ids.csv
 EdinetcodeDlInfo.csv
 file_ids_with_edinet.csv
+/files/
+
+output.txt
+h.txt
+output.txt
+2023-04-01~2024-06-01.txt
+*.csv
+doc_id_list.csv
+file_ids.csv
