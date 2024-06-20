@@ -99,7 +99,8 @@ def document_verifier(json_files, files):
     for doc in doc_dict:
         print(doc)
 
-def json_fixer(json)
+def json_fixer(json):
+    pass
 
         
 
