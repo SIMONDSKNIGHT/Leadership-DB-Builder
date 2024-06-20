@@ -31,10 +31,10 @@ def main():
     parser = argparse.ArgumentParser(description="Determine behavior based on an input number.")
     
     # Add a positional argument for the number
-    parser.add_argument('number', type=int, help="A number to determine behavior",default=1)
+    
     parser.add_argument('--forceupdate', action='store_true', help="Update the list of reports")
     args = parser.parse_args()
-    number = args.number
+    
     
 
 
@@ -52,7 +52,6 @@ def main():
     #todays date
     enddate = datetime.datetime.now().strftime("%Y/%m/%d")
     #5 quarters ago
-    startdate = (datetime.datetime.now() - datetime.timedelta(days=457)).strftime("%Y/%m/%d")
     #TODO Change Logic so that on startup it downloads 5 quarters of reports IF folder does not exist; if it exists, find the most recent folder and download for after this date
     #figure out the most recent previous update that was completed
     if args.forceupdate:
@@ -60,7 +59,15 @@ def main():
     else:
         try:
             file_names = os.listdir("json")
-            latest_file = max(file_names, key=os.path.getctime)
+            #identify the most recent file IE the file for whom the last1 10 values correspond to the most recent date
+            for i in range(len(file_names)):
+                file_names[i] = file_names[i].split("~")[1].split(".")[0]
+                #check to see if the file is unfinished by Presense of I at start of filename
+                if file_names[i][0] == "I":
+                    continue
+                else:
+                    file_names[i] = datetime.datetime.strptime(file_names[i], "%Y/%m/%d")
+            latest_file = max(file_names).strftime("%Y/%m/%d")
             #name format is "2023-04-01~2024-06-01.txt"
             startdate = latest_file.split("~")[1].split(".")[0].replace("-", "/")
             startdate = (datetime.datetime.strptime(startdate, "%Y/%m/%d") + datetime.timedelta(days=1)).strftime("%Y/%m/%d")
@@ -80,11 +87,8 @@ def main():
         sys.exit(0)
     startdate = startdate.replace("/", "-")
     enddate = enddate.replace("/", "-") 
-    with open("/json/"+startdate+"~"+enddate+".txt", "w") as file:
-        file.write(json.dumps(output, indent=4,ensure_ascii=False))
 
-    print("downloaded info from "+startdate+" to "+enddate)
-    sys.exit(0)
+    
 
     
     doc_id_list = []
@@ -110,6 +114,8 @@ def main():
                 if not os.path.exists(f'files/{id}/{i["docID"]}_info.txt'):
                     with open(f'files/{id}/{i["docID"]}_info.txt', 'w') as file:
                         file.write(json.dumps(i, indent=4,ensure_ascii=False))
+                    with open(f'json/I{startdate}~{enddate}.txt', 'a') as file:
+                        file.write(json.dumps(i, indent=4,ensure_ascii=False) + "\n")
                 doc_id_list.append((id,name,i["docDescription"],i['docID']))
         # Write doc_id_list to a JSON file
         
@@ -129,6 +135,8 @@ def main():
     #rest_server.download_reports( doc_id_list,3)
     #rest_server.download_reports( doc_id_list,4)
     rest_server.download_reports( doc_id_list,5)
+    #rename json file to reflect completion
+    os.rename(f'json/I{startdate}~{enddate}.txt', f'json/{startdate}~{enddate}.txt')
     print('complete')
 
 
