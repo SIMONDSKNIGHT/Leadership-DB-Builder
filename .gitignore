@@ -174,3 +174,4 @@ f_year_end_not_spring.csv
 /json/
 sumdf.csv
 parsed.csv
+.DS_Store

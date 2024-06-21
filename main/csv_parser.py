@@ -35,6 +35,14 @@ class CSVParser():
             for index, row in stock.iterrows():
                 if row['要素ID'] == 'jpcrp_cor:OfficialTitleOrPositionInformationAboutDirectorsAndCorporateAuditors':
                     rows.append(index)
+            if rows == []:
+                for index, row in stock.iterrows():
+                    if  'OfficialTitleOrPositionInformationAboutDirectorsAndCorporateAuditors' in row['要素ID']:
+                        rows.append(index)
+                if rows != []:
+                    print(f"document {file_path} contains mismatched columns")
+                else:
+                    print(f"document {file_path} does not contain the required columns")
             #find the distance between the rows/ it is the same every time
             distance = rows[1] - rows[0]
             #create a new dataframe with the columns Job Title, Name, DOB, Work History, Footnotes
@@ -62,6 +70,7 @@ class CSVParser():
             shutil.rmtree(new_dir)
         except Exception as e:
             print(f"Error parsing CSV file: {file_path} ", e)
+            shutil.rmtree(new_dir)
 
 
     def get_df(self):

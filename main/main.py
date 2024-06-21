@@ -9,9 +9,13 @@ import csv
 import sys
 import time
 import os
-
+from dateutil.relativedelta import relativedelta
 file_path = "/Users/dagafed/Library/CloudStorage/OneDrive-Personal/Documents/top 500 by liquidity.xlsx"
 rest_server_url = 'https://api.edinet-fsa.go.jp/api/v2/documents'
+
+
+
+
 
 
 def write_csv(file_ids, filename):
@@ -19,8 +23,19 @@ def write_csv(file_ids, filename):
         writer = csv.writer(csvfile)
         writer.writerow(['File ID', 'Value'])
         writer.writerows(file_ids)
+def find_next_quarter(date):
+    date = date - relativedelta(months=+6)
+    if date.month <= 3:
+        return datetime.datetime(date.year, 3, 31)
+    elif date.month <= 6:
+        return datetime.datetime(date.year, 6, 30)
+    elif date.month <= 9:
+        return datetime.datetime(date.year, 9, 30)
+    else:
+        return datetime.datetime(date.year, 12, 31)
 #I know this is not best practice but this only needs to be run once
 def main():
+    
     try:
         with open("main/api_key.txt", "r") as file:
             api_key = file.read()
@@ -51,6 +66,12 @@ def main():
     
     #todays date
     enddate = datetime.datetime.now().strftime("%Y/%m/%d")
+    #figure out the last day of the last quarter before the end date eg if this was 2023/06/01, the last day of the last quarter would be 2023/03/31
+    #this is done by subtracting 3 months from the end date and then finding the next date of either march, june, september or december
+    last_quarter_end = find_next_quarter(enddate)
+    2_quarters_ago = find_next_quarter(last_quarter_end)
+
+
     #5 quarters ago
     #TODO Change Logic so that on startup it downloads 5 quarters of reports IF folder does not exist; if it exists, find the most recent folder and download for after this date
     #figure out the most recent previous update that was completed
