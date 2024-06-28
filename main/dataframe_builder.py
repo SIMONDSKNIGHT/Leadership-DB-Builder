@@ -5,19 +5,26 @@ import json
 
 class DataFrameBuilder:
     def __init__(self):
-        self.sumdf = pd.DataFrame()
+        
+        self.sumdf = pd.DataFrame(columns=['TSE:', 'Company Name', 'Document Title', 'Submission Date', 'period end', 'type'])
+        self.failed = pd.DataFrame(columns=['TSE:', 'Company Name', 'Document Title', 'Submission Date', 'period end', 'type'])
     
-    def build_dataframes(self,filepath):
+    def build_dataframes(self,filepath,quarterly=False):
         
         teisei= []
-        
+        latest ={}
+        misformat = set()
+        #sort list of directories
         for TSENO in os.listdir(filepath):
             if TSENO == ".DS" or TSENO == ".DS_Store":
                 continue
-            for DocID in os.listdir(filepath+'/'+TSENO):
+            sorted_docIDs = sorted(os.listdir(filepath+'/'+TSENO))
+            sorted_docIDs.reverse()
+            for DocID in sorted_docIDs:
                 if DocID == ".DS" or DocID == ".DS_Store":
                     continue
                 csv_parser = CSVParser(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'.zip')
+                print('csv made')
                 
                 df = csv_parser.get_df()
                 
@@ -34,79 +41,77 @@ class DataFrameBuilder:
                 company_name = data.get('filerName')
                 #get the document title
                 document_title = data.get('docDescription')
+                period_end = data.get('periodEnd')
+
                 #add the columns to the dataframe
                 
                     
                 if df.empty:
                     print(f"Empty dataframe for {document_title} with Company Name: {company_name} and document ID: {DocID}")
                     teisei.append(DocID)
+                    continue
                 df['TSE:'] = TSENO
                 df['Submission Date'] = submission_date
                 df['Company Name'] = company_name
                 df['Document Title'] = document_title
+                df['period end'] = period_end
+                if quarterly == True:
+                    df['type'] = 'quarterly'
+                else:
+                    df['type'] = 'annual'    
+                if csv_parser.different_format:
+                    misformat.add(DocID)
+                    self.failed = pd.concat([self.failed, df], ignore_index=True)
+                else:
+                    self.sumdf = pd.concat([self.sumdf, df], ignore_index=True)
+                    break
 
-                self.sumdf = self.sumdf._append(df)
+                        
+
                 del csv_parser
         #write to csv
         #reorganise the csv so that the order is [TSE:, Company Name, Name, Job Title, DOB, Work History, Footnotes, Company Footnotes, Document Title, Submission Date]
-        self.sumdf = self.sumdf[['TSE:', 'Company Name', 'Name', 'Job Title', 'DOB', 'Work History', 'Footnotes', 'Company Footnotes', 'Document Title', 'Submission Date']]
+
+        # self.sumdf = self.sumdf[['TSE:', 'Company Name', 'Name', 'Job Title', 'DOB', 'Work History', 'Footnotes', 'Company Footnotes','external' ,'Document Title', 'Submission Date']]
         print(teisei)
         print(len(teisei))
+        print(misformat)
+    def read_csv1   (self, filepath):
+        self.sumdf = pd.read_csv(filepath)
 
-    def remove_outdated_info(self):
-        #get all info about 1 company, find the most recent submission date, remove all rows for company that are not the most recent submission date from sumdf
-        #iterate over unique TSENOs
 
-        for TSENO in self.sumdf['TSE:'].unique():
+    def tag_external_directors(self):
+        #go through the CSV and for each row, check the value of the column company footnotes for the substring '社外取締役' and return the TSE value for those that do not
+        #add a boolean column to the table called 'external?' set to false
+        self.sumdf['external?'] = False
+        ootpoot  = ""
+        for index, row in self.sumdf.iterrows():
+            
+            if '社外' in row['Job Title']:
+                self.sumdf.at[index, 'external?'] = True
+            
+            # check if row['external'] is not nan
+            elif not pd.isna(row['external']):
+                external_text = row['external']
+                id = row['TSE:'] 
 
-            #most of this is depricated
-            #get all rows for that TSENO
-            df = self.sumdf[self.sumdf['TSE:'] == TSENO]
-            #get the most recent submission date (note the date is in the format )
-            most_recent_date = df['Submission Date'].max()
-            #check the document name for these documents, and if they do not contain the character "-", find the second most recent date
-            m_recent_date = most_recent_date
-            bad_docu_name = df[df['Submission Date']==m_recent_date]['Document Title'][0]
-            while True:
-                #if "=" in documents with that submission date
+                ootpoot += f"{id} {external_text} \n"
 
-                
-                if "－" in df[df['Submission Date']==m_recent_date]['Document Title'][0]:
-                    
-                
-                    break
-                else:
-                    
-                    print('failure identified at ', m_recent_date, TSENO)
-                    m_recent_date = df[df['Submission Date'] < m_recent_date]['Submission Date'].max()
-
-                    print(m_recent_date)
-                if df[df['Submission Date']==m_recent_date].empty:
-                    print(f'No document found for {TSENO}')
-                    break
-            if df[df['Submission Date']==m_recent_date].empty:
-                print(f'No document found for {TSENO}, document name at {bad_docu_name}')
-                continue
-                
-            #remove all rows for that TSENO that are not the most recent submission date
-            self.sumdf = self.sumdf[(self.sumdf['TSE:'] != TSENO) | (self.sumdf['Submission Date'] == most_recent_date)]
-            #change the docuemt name for that TSENO to the document name gained
-            if m_recent_date != most_recent_date:
-                print(most_recent_date, m_recent_date, TSENO)
-                #find document name of the most recent submission date
-                document_suffix = df[df['Submission Date']==m_recent_date]['Document Title'][0].split("－")[1:]
-                #add the document suffix to all rows where the submission date is the most recent date
-                new_document_name = df[df['Submission Date']==most_recent_date]['Document Title'].apply(lambda x: x +" －"+ document_suffix)
-                self.sumdf.loc[self.sumdf['TSE:'] == TSENO, 'Document Title'] = new_document_name               
+        with open ('external_directors.txt', 'w') as file:
+            file.write(ootpoot)
 
     def to_csv(self, filepath=''):
         self.sumdf.to_csv(filepath, index=False)
+    def to_csv_failures(self, filepath=''):
+        self.failed.to_csv(filepath, index=False)
 if __name__ == '__main__':
 
     builder = DataFrameBuilder()
-    builder.build_dataframes('files')
-    builder.remove_outdated_info()
-    builder.to_csv('sumdf.csv')
+    # builder.build_dataframes('files')
+    # builder.to_csv('sumdf.csv')
+    # builder.to_csv_failures('failed.csv')
+    builder.read_csv1('sumdf.csv')
+    builder.tag_external_directors()
     print("Complete")
 
 
