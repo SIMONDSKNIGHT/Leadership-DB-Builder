@@ -24,7 +24,7 @@ def write_csv(file_ids, filename):
         writer.writerow(['File ID', 'Value'])
         writer.writerows(file_ids)
 def find_next_quarter(date):
-    date = date - relativedelta(months=+6)
+    date = date - relativedelta(months=+3)
     if date.month <= 3:
         return datetime.datetime(date.year, 3, 31)
     elif date.month <= 6:
@@ -69,7 +69,10 @@ def main():
     #figure out the last day of the last quarter before the end date eg if this was 2023/06/01, the last day of the last quarter would be 2023/03/31
     #this is done by subtracting 3 months from the end date and then finding the next date of either march, june, september or december
     last_quarter_end = find_next_quarter(enddate)
-    2_quarters_ago = find_next_quarter(last_quarter_end)
+    two_quarters_ago = find_next_quarter(last_quarter_end)
+    three_quarters_ago = find_next_quarter(two_quarters_ago)
+    four_quarters_ago = find_next_quarter(three_quarters_ago)
+    five_quarters_ago = find_next_quarter(four_quarters_ago)
 
 
     #5 quarters ago
