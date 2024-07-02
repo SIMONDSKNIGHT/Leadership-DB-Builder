@@ -254,12 +254,17 @@ class DataFrameBuilder:
         for index, row in self.sumdf.iterrows():
             date = row['year joined']
             if str(date) > str(largest_date):
-                largest_date = date
-                index_list = [index]
+                try:
+                    number = int(date[:4])
+                    largest_date = date
+                    index_list = [index]
+                except:
+                    print('error', date, row['TSE:'], row['Name'])
             elif date == largest_date:
                 index_list.append(index)
         print(largest_date)
-        print(index_list)
+        for i in index_list:
+            print(self.sumdf.loc[i, 'TSE:'], self.sumdf.loc[i, 'Name'])
            
             
                 
