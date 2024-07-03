@@ -29,9 +29,8 @@ class DataFrameBuilder:
                 df = csv_parser.get_df()
                 
                 #open the info text file
-                with open(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'_info.txt', 'r') as file:
-                    content = file.read()
-                data = json.loads(content)
+                with open(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'.json', 'r') as file:
+                    data = json.load(file)
                 sec_code = data.get('secCode')
                 sec_code = sec_code[:4]
                 #get the submission date but remove the time
