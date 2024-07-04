@@ -2,17 +2,23 @@ import pandas as pd
 import os
 from csv_parser import CSVParser
 import json
+import sys
 
+
+
+###########################
+### this one will undoubtably be made obsolete soon: reasoning is that we need to be building this csv document by document
+###########################
 class DataFrameBuilder:
     def __init__(self):
         
         self.sumdf = pd.DataFrame(columns=['TSE:', 'Company Name', 'Document Title', 'Submission Date', 'period end', 'type'])
         self.failed = pd.DataFrame(columns=['TSE:', 'Company Name', 'Document Title', 'Submission Date', 'period end', 'type'])
     
-    def build_dataframes(self,filepath,quarterly=False):
+    def build_dataframes(self,filepath):
         
         teisei= []
-        latest ={}
+        TEST_counter =0
         misformat = set()
         #sort list of directories
         for TSENO in os.listdir(filepath):
@@ -23,11 +29,7 @@ class DataFrameBuilder:
             for DocID in sorted_docIDs:
                 if DocID == ".DS" or DocID == ".DS_Store":
                     continue
-                csv_parser = CSVParser(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'.zip')
-                print('csv made')
-                
-                df = csv_parser.get_df()
-                
+
                 #open the info text file
                 with open(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'.json', 'r') as file:
                     data = json.load(file)
@@ -35,35 +37,82 @@ class DataFrameBuilder:
                 sec_code = sec_code[:4]
                 #get the submission date but remove the time
                 submission_date = data.get('submitDateTime')
+                document_code = data.get('docID')
                 
                 #get the company name
                 company_name = data.get('filerName')
                 #get the document title
                 document_title = data.get('docDescription')
                 period_end = data.get('periodEnd')
+                if "有価証券報告書" not in document_title:
+                    continue
+                
 
                 #add the columns to the dataframe
+                csv_parser = CSVParser(filepath+'/'+TSENO+'/'+DocID+'/'+DocID+'.zip')
+
+                csv_parser.director_parse()
+                df = csv_parser.get_directordf()
+                
                 
                     
                 if df.empty:
                     print(f"Empty dataframe for {document_title} with Company Name: {company_name} and document ID: {DocID}")
                     teisei.append(DocID)
-                    continue
+                    print(df)
+                    
+                
                 df['TSE:'] = TSENO
                 df['Submission Date'] = submission_date
                 df['Company Name'] = company_name
                 df['Document Title'] = document_title
+                df['document code'] = document_code
                 df['period end'] = period_end
-                if quarterly == True:
-                    df['type'] = 'quarterly'
+                df['type'] = 'annual'    
+                print(document_code)
+                TEST_counter+=1
+
+                # logic that handles officers in 
+                
+
+                ofdf= csv_parser.get_officerdf()
+                if not ofdf.empty:
+                    ofdf['TSE:'] = TSENO
+                    ofdf['Submission Date'] = submission_date
+                    ofdf['Company Name'] = company_name
+                    ofdf['Document Title'] = document_title
+                    ofdf['document code'] = document_code
+                    ofdf['period end'] = period_end
+                    ofdf['type'] = 'annual'
+                    self.sumdf = pd.concat([self.sumdf, ofdf], ignore_index=True)
                 else:
-                    df['type'] = 'annual'    
+                    print(ofdf)
+                    print(f"Empty officer dataframe for {document_title} with Company Name: {company_name} and document ID: {DocID} but only for officers")
+                if df.empty and ofdf.empty:
+                    print(f"Empty dataframe for {document_title} with Company Name: {company_name} and document ID: {DocID}")
+                    teisei.append(DocID)
+
+                    continue
+                
+
+
+
+
+                # if TEST_counter == 5:
+                #     self.to_csv('test.csv')
+                #     sys.exit()
+
+
                 if csv_parser.different_format:
                     misformat.add(DocID)
                     self.failed = pd.concat([self.failed, df], ignore_index=True)
+                    print(f"Document {DocID} contains mismatched columns")
                 else:
                     self.sumdf = pd.concat([self.sumdf, df], ignore_index=True)
+
                     break
+                    
+
 
                         
 
@@ -77,6 +126,15 @@ class DataFrameBuilder:
         print(misformat)
     def read_csv1   (self, filepath):
         self.sumdf = pd.read_csv(filepath)
+        self.sumdf["error"] = ""   
+    def rearrange_columns(self,column_name):
+        columns = self.sumdf.columns
+        columns = list(columns)
+        #remove column name from columns
+        columns.remove(column_name)
+        #reorganise the columns
+        columns.insert(0,column_name)
+            #reorganise the dataframe
 
 
     def tag_external_directors(self):
@@ -85,7 +143,8 @@ class DataFrameBuilder:
         self.sumdf['external?'] = False
         ootpoot  = ""
         for index, row in self.sumdf.iterrows():
-            
+            if row['which table?'] == 'officer':
+                continue
             if '社外' in row['Job Title']:
                 self.sumdf.at[index, 'external?'] = True
             
@@ -125,31 +184,23 @@ class DataFrameBuilder:
                 else:
                     director_dict[row['TSE:']] = False
         return director_dict
+   
     def to_csv(self, filepath=''):
         self.sumdf.to_csv(filepath, index=False)
     def to_csv_failures(self, filepath=''):
         self.failed.to_csv(filepath, index=False)
-    def when_joining(self):
-        #for each of the non external directors, go through their
-        pass
-    def last_position(self):
-        #for person, go through their work history and find the last position they held
-        for index, row in self.sumdf.iterrows():
-            if row['external?'] == False:
-                work_history = row['Work History']
-                work_history = work_history.split('。')
-                work_history = [text.replace(' ', '') for text in work_history]
-                work_history = [text.replace('　', '') for text in work_history]
-                last_position = work_history[-1]
 
+    def get_sumdf(self):
+        return self.sumdf
     def dataframe_rearranger(self):
          # TSE:,Name,Work History,Footnotes,Company Footnotes,external,Document Title,Company Name,Submission Date,Job Title,DOB,external?
-        self.sumdf = self.sumdf[['year joined','current job','TSE:','Name','Work History', 'Company Name',  'Job Title', 'DOB',  'Footnotes', 'Company Footnotes','external' ,'Document Title', 'Submission Date', 'external?','error']]
+        self.sumdf = self.sumdf[["TSE:","Company Name","Document Title","Submission Date","period end","type","Name","Job Title","Work History","Footnotes","external","DOB","which table?","Company Footnotes","document code","external?","year joined","current job","last job","error"
+]]
     def lastjob(self):
         id = []
         #add empty current job column to self.sumd
         self.sumdf['current job'] = ""
-        self.sumdf['error'] = ""
+        
        
         for index, row in self.sumdf.iterrows():
             if row['TSE:'] not in id:
@@ -205,7 +256,7 @@ class DataFrameBuilder:
                     current_job += t
                 except:
                     self.sumdf.loc[index, 'error'] += 'Error no current job found: no most recent job, '
-                    print('exception',row['TSE:'], row['Name'])
+                    print('exception line 266',row['TSE:'], row['Name'])
                     
 
                 
@@ -213,11 +264,12 @@ class DataFrameBuilder:
             self.sumdf.loc[index, 'current job'] = current_job   
     def joined_company_when(self):
         #for each of the non external directors, go through their
+        self.sumdf['last job'] = ""
         self.sumdf['year joined'] = ""
-        self.sumdf['error'] = ""
         for index, row in self.sumdf.iterrows():
             counter = 0
             if row['external?'] == False:
+               
                 text = row['Work History']
                 index_nen = [pos for pos, char in enumerate(text) if char == '年']
                 #split the text by the position of the 年
@@ -226,8 +278,9 @@ class DataFrameBuilder:
                 text = [t.replace(' ', '') for t in text]
                 text = [t.replace('　', '') for t in text]      
                 output = ''
-                for t in text:
+                for i, t in enumerate(text):
                     if '当社入社' in t:
+                        print("j")
                         counter += 1
                         #break off the first section of the text that includes the date
                         if '月' in t:
@@ -235,16 +288,26 @@ class DataFrameBuilder:
                             t= t.split('月')
                             
                             t= t[0]+'月'
+                            if i > 0:
+                                print("yipee!")
+                                print(text[i-1])
+                                self.sumdf.loc[index, 'last job'] = text[i-1]
+                            
+                        
+                            
                         else:
                             self.sumdf.loc[index, 'error'] += 'Error job  year formatting could be incorrect, '
+
+
                         output = str(t)
                     if counter > 1:
                         self.sumdf.loc[index, 'error'] += 'Error multiple join dates found, '
-                        print('exception',row['TSE:'], row['Name'])
+                        print('exception line 302 df builder',row['TSE:'], row['Name'])
                 print(output)
                 if output == '':
+                    print()
                     self.sumdf.loc[index, 'error'] += 'Error no year joined found, '
-                    print('exception',row['TSE:'], row['Name'])
+                    print('exception line 306',row['TSE:'], row['Name'])
                 self.sumdf.loc[index, 'year joined'] = output
     def get_latest_employee(self):
         #go throught the arraay and return the most recent employee
@@ -259,13 +322,47 @@ class DataFrameBuilder:
                     index_list = [index]
                 except:
                     print('error', date, row['TSE:'], row['Name'])
+                    self.sumdf.loc[index, 'error'] += 'Error year joined formatting could be incorrect, '
             elif date == largest_date:
                 index_list.append(index)
         print(largest_date)
         for i in index_list:
             print(self.sumdf.loc[i, 'TSE:'], self.sumdf.loc[i, 'Name'])
-           
+    def sort_officers(self):
+        for id in self.sumdf['TSE:'].unique():
+            df = self.sumdf[self.sumdf['TSE:'] == id]
+            df['name_normalised'] = df['Name'].str.replace(' ', '').replace('　', '')
+            for name in df['name_normalised'].unique():
+                print(name)
+                df2 = df[df['name_normalised'] == name]
+                if len(df2) > 1:
+                    # Print the name for debugging purposes
+
+                    # Filter rows based on 'which table?' value
+                    row1 = df2[df2['which table?'] == 'officer'].iloc[0]
+                    row2 = df2[df2['which table?'] == 'director'].iloc[0]
+                    row1Jtitle = row1['Job Title'].replace(' ', '').replace('　', '')
+                    row2Jtitle = row2['Job Title'].replace(' ', '').replace('　', '')
+
+                    # Remove spaces from the job title
+                    if row1Jtitle in row2Jtitle or row2Jtitle in row1Jtitle:
+                        # Append row1 footnotes to row2 footnotes in sumdf and delete row1
+                        self.sumdf.at[row2.name, 'Footnotes'] += ' ' + row1['Footnotes']
+                    
+                        self.sumdf = self.sumdf.drop(row1.name)
+
+                        print('row dropped')
+                    else:
+                        # Append row1 title and footnotes to row2 and delete row1
+                        self.sumdf.at[row2.name, 'Job Title'] += ' / ' + row1['Job Title']
+                        self.sumdf.at[row2.name, 'Footnotes'] += ' ' + row1['Footnotes']
+                        self.sumdf = self.sumdf.drop(row1.name)
+
+                        print('row dropped')
+
+            # Update the instance variable with the new dataframe
             
+
                 
                         
                         
@@ -275,11 +372,9 @@ class DataFrameBuilder:
 if __name__ == '__main__':
 
     builder = DataFrameBuilder()
-    # builder.build_dataframes('files')
-    # builder.to_csv('sumdf.csv')
-    # builder.to_csv_failures('failed.csv')
+
     builder.read_csv1('sumdf.csv')
-    # builder.lastjob()
+    builder.lastjob()
     builder.get_latest_employee()
     builder.to_csv('sumdf.csv')
 

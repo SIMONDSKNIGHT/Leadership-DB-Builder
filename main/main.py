@@ -8,6 +8,8 @@ import json
 from tqdm import tqdm
 import sys
 import dataframe_builder
+import pandas as pd
+import csv_querier
 
 
 def main():
@@ -49,6 +51,8 @@ def main():
     del excel_parser
     if args.test:
         test_logic(ids)
+        print("Test complete.")
+        exit()
 
 
 
@@ -113,15 +117,54 @@ def main():
         #write the jsonobject to the folder
         with open(f'files/{tseNO}/{docID}/{docID}.json','w') as f:
             json.dump(jsonobject,f,indent=4,ensure_ascii=False)
-        rest_server_interface.download_report(docID,tseNO,2)
-        rest_server_interface.download_report(docID,tseNO,5)
+        # rest_server_interface.download_report(docID,tseNO,2)
+        # rest_server_interface.download_report(docID,tseNO,5)
+    ### call this one the loop
     print("Downloaded all reports.")
     
 def test_logic(ids):
-    
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
-    dataframe_builder_instance.build_dataframe("files")
+    # # dataframe_builder_instance.build_dataframes("files")
+    # # dataframe_builder_instance.to_csv("test.csv")
+    dataframe_builder_instance.read_csv1("test.csv")
+    # # 
+    # # print(len(df))
+    dataframe_builder_instance.sort_officers()
+
     dataframe_builder_instance.to_csv("test.csv")
+
+    dataframe_builder_instance.tag_external_directors()
+    dataframe_builder_instance.to_csv("test.csv")
+    dataframe_builder_instance.joined_company_when()
+    dataframe_builder_instance.lastjob()
+    dataframe_builder_instance.to_csv("test.csv")
+    dataframe_builder_instance.dataframe_rearranger()
+    dataframe_builder_instance.to_csv("test.csv")
+
+    # # dataframe_builder_instance.rearrange_columns('Name')
+    # # dataframe_builder_instance.rearrange_columns('TSE:')
+    # # dataframe_builder_instance.to_csv('sumdf.csv')
+    # # df = dataframe_builder_instance.get_sumdf()
+    # dataframe_builder_instance.joined_company_when()
+    # dataframe_builder_instance.to_csv('sumdf.csv')
+    querier = csv_querier.CSVQuerier('test.csv')# column condition contains sort
+    # querier.query("columns$TSE:$Name$Company Name$Job Title")
+    querier.query("columns$TSE:$Name$external?$Job Title$year joined$Company Name$last job;boolCondition$external?$True;sort$year joined$desc")
+    # df = dataframe_builder_instance.get_sumdf()
+    # dicto={}
+    # df["clean_names"] = df["Name"].str.replace(' ','').replace('.','').replace('　','')
+    # for unique in df['clean_names'].unique():
+    #     dicto[unique] = df[df['clean_names']==unique].shape[0]
+    # #sort dict
+    # dicto = dict(sorted(dicto.items(), key=lambda item: item[1],reverse=True))
+    # for key in dicto:
+    #     if dicto[key]>1:
+    #         print(f"{key}:{dicto[key]}")
+    
+    
+
+
+
 
     #this is simply a way to ignore the body of the code above if the test loop is run.
     
