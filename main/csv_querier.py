@@ -51,8 +51,11 @@ class CSVQuerier:
                     df = df[df[column].str.contains(value)]
             if split_query[0]=="boolCondition":
                 column = split_query[1]
-                value = split_query[2].lower in ['true', 'yes', 'y', '1']
-                df = df[df[column] == value]
+                true = int(split_query[2])
+                bool = true == 1
+                
+                df = df[df[column] == bool]
+
         outputdf = df
 
 

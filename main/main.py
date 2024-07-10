@@ -10,6 +10,7 @@ import sys
 import dataframe_builder
 import pandas as pd
 import csv_querier
+import time
 
 
 def main():
@@ -48,11 +49,17 @@ def main():
     ids = []
     for i in excel_parser.get_file_ids():
         ids.append(i[0][4:])
+        
     del excel_parser
+    with open('ids.txt','w') as f:
+        for i in ids:
+            f.write(i+'\n')
+
     if args.test:
         test_logic(ids)
         print("Test complete.")
         exit()
+    #write ids to file
 
 
 
@@ -119,42 +126,135 @@ def main():
             json.dump(jsonobject,f,indent=4,ensure_ascii=False)
         # rest_server_interface.download_report(docID,tseNO,2)
         # rest_server_interface.download_report(docID,tseNO,5)
-    ### call this one the loop
+    ### call this one the loop, this is the yearly loop
+    file_path = 'files/'
+    dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
+    for tseno in os.listdir(file_path):
+        if tseno == '.DS_Store':
+            continue
+        TSE_path = os.path.join(file_path, tseno)
+        sorted_docIDS=sorted(os.listdir(TSE_path))
+        sorted_docIDS = reversed(sorted_docIDS)
+        for docid in sorted_docIDS :
+            if docid == ".DS" or docid == ".DS_Store":
+                continue
+
+            #open the info text file
+            with open(file_path+'/'+tseno+'/'+tseno+'/'+docid+'.json', 'r') as file:
+                data = json.load(file)
+            document_title = data.get('docDescription')
+        
+            del data
+            if "有価証券報告書" not in document_title:
+                continue
+            # rest_server_interface.download_report(document_code,sec_code,5)  UNCOMMENT THIS FOR ACTUAL OPERATION
+            success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
+            if success:
+                pass
+                
+
+            
+
     print("Downloaded all reports.")
     
 def test_logic(ids):
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
-    # # dataframe_builder_instance.build_dataframes("files")
-    # # dataframe_builder_instance.to_csv("test.csv")
+    # dataframe_builder_instance.build_dataframes("files")
+    # dataframe_builder_instance.to_csv("test.csv")
     dataframe_builder_instance.read_csv1("test.csv")
-    # # 
-    # # print(len(df))
+    
+    
+    # # # 
+    # # # print(len(df))
+    #remove duplicates of the same person
     dataframe_builder_instance.sort_officers()
 
-    dataframe_builder_instance.to_csv("test.csv")
-
+    dataframe_builder_instance.to_csv("test1.csv")
+    #parses incorrectly input periods
+    dataframe_builder_instance.period_fix()
+    dataframe_builder_instance.to_csv("test1.csv")
+    #adds external directors column
     dataframe_builder_instance.tag_external_directors()
-    dataframe_builder_instance.to_csv("test.csv")
-    dataframe_builder_instance.joined_company_when()
-    dataframe_builder_instance.lastjob()
-    dataframe_builder_instance.to_csv("test.csv")
-    dataframe_builder_instance.dataframe_rearranger()
-    dataframe_builder_instance.to_csv("test.csv")
+    dataframe_builder_instance.to_csv("test1.csv")
+    
+    dataframe_builder_instance.previous_jobs()
+    df = dataframe_builder_instance.get_sumdf()
+    dataframe_builder_instance.to_csv("test2.csv")
+    dataframe_builder_instance.work_history_cleaner()
+    dataframe_builder_instance.work_history_error_parser()
+    dataframe_builder_instance.to_csv('toomany.csv')
+    with open ("work_history_errors.csv",'r') as f:
+        errordf = pd.read_csv(f)
+    No_Errors = False
+    while not No_Errors:
+        errorsvals = errordf['WH Error'].values()
+        if errorsvals == ['']:
+            No_Errors = True
+        else:
+            print(errorsvals)
+
+
+
+    # dataframe_builder_instance.to_csv("test.csv")
+    # dataframe_builder_instance.dataframe_rearranger()
+    # dataframe_builder_instance.to_csv("test.csv")
+    #
+    # dataframe_builder_instance.to_csv("test.csv")
+    # dataframe_builder_instance.to_csv_failures("failed.csv")
+    #read all of the ids in from ids.txt
+    # with open ("ids.txt",'r') as f:
+    #     ids = f.readlines()
+
+    # df = dataframe_builder_instance.get_sumdf()
+    
+    # for index, row in df.iterrows():
+    #     # get rid of every row that has external? == True or external? == False and date joined == nan
+    #     print
+    #     if row['external?'] == True:
+    #         df.drop(index, inplace=True)
+
+    #     elif pd.isna(row['year joined'])==False :
+            
+    #         df.drop(index, inplace=True)
+    # with open('fails.csv','w') as f:
+    #     df.to_csv(f)
+    
+
+
+    # missing_ids = ['5595','141A'] #8952 has no files, 3226 has no files, 8963 has no files, 1326 has no files
+    # for id in missing_ids:
+    #     print(id)
+    #     for document in os.listdir('files/'+id):
+    #         if document == '.DS_Store':
+    #             continue
+    #         with open('files/'+id+'/'+document+'/'+document+'.json','r')as file:
+    #             data = json.load(file)
+    #             print(data['docDescription'])
+    # #FIX THE FUCKING JOB HISTORY FORMAT LMAO code
+    # for index,row in df.iterrows():
+    #     text = row ['Work History']
+    #     index_nen = [pos for pos, char in enumerate(text) if char == '年']
+    #     #split the text by the position of the 年
+    #     text = [text[i-4:j-4] for i, j in zip(index_nen, index_nen[1:]+[len(text)+4])]
+    #     print(row['TSE:'], row['Name'])
+    #     for i in text:
+    #         print(i)
+    #         time.sleep(1)
 
     # # dataframe_builder_instance.rearrange_columns('Name')
     # # dataframe_builder_instance.rearrange_columns('TSE:')
     # # dataframe_builder_instance.to_csv('sumdf.csv')
     # # df = dataframe_builder_instance.get_sumdf()
     # dataframe_builder_instance.joined_company_when()
-    # dataframe_builder_instance.to_csv('sumdf.csv')
-    querier = csv_querier.CSVQuerier('test.csv')# column condition contains sort
-    # querier.query("columns$TSE:$Name$Company Name$Job Title")
-    querier.query("columns$TSE:$Name$external?$Job Title$year joined$Company Name$last job;boolCondition$external?$True;sort$year joined$desc")
-    # df = dataframe_builder_instance.get_sumdf()
-    # dicto={}
-    # df["clean_names"] = df["Name"].str.replace(' ','').replace('.','').replace('　','')
-    # for unique in df['clean_names'].unique():
-    #     dicto[unique] = df[df['clean_names']==unique].shape[0]
+    # # dataframe_builder_instance.to_csv('sumdf.csv')
+    querier = csv_querier.CSVQuerier('test1.csv')# column condition contains sort
+    # # querier.query("columns$TSE:$Name$Company Name$Job Title")
+    querier.query("columns$TSE:$Name$External$Work History;boolCondition$External$1")
+    # # df = dataframe_builder_instance.get_sumdf()
+    # # dicto={}
+    # # df["clean_names"] = df["Name"].str.replace(' ','').replace('.','').replace('　','')
+    # # for unique in df['clean_names'].unique():
+    # #     dicto[unique] = df[df['clean_names']==unique].shape[0]
     # #sort dict
     # dicto = dict(sorted(dicto.items(), key=lambda item: item[1],reverse=True))
     # for key in dicto:

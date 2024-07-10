@@ -50,7 +50,7 @@ class CSVParser():
             #find the distance between the rows/ it is the same every time
             distance = rows[1] - rows[0]
             #create a new dataframe with the columns Job Title, Name, DOB, Work History, Footnotes
-            self.directordf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','external','which table?'])
+            self.directordf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table?'])
             #iterate through the rows and extract the data
 
             try:
@@ -108,7 +108,7 @@ class CSVParser():
                 
             #write the footnotes in as a column value in the new dataframe
             self.directordf['Company Footnotes'] = footnotes
-            self.directordf['external'] = external_director
+            self.directordf['External Info'] = external_director
             self.directordf['which table?'] = 'director'
             #delete the extracted files
             
@@ -132,7 +132,7 @@ class CSVParser():
             #find the distance between the rows/ it is the same every time
             distance = rows[1] - rows[0]
             #create a new dataframe with the columns Job Title, Name, DOB, Work History, Footnotes
-            self.officerdf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','external','which table?'])
+            self.officerdf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table?'])
             #iterate through the rows and extract the data
 
             try:
@@ -191,7 +191,7 @@ class CSVParser():
                 
             #write the footnotes in as a column value in the new dataframe
             self.officerdf['Company Footnotes'] = footnotes
-            self.officerdf['external'] = external_director
+            self.officerdf['External Info'] = external_director
             self.officerdf['which table?'] = 'officer'
             #delete the extracted files
             
@@ -199,6 +199,8 @@ class CSVParser():
             shutil.rmtree(new_dir)
         except Exception as e:
             print(f"Error parsing CSV file: {self.csv_file_path} ", e)
+            with open('failed.txt', 'a') as file:
+                file.write(f"Error parsing CSV file: {self.csv_file_path} {e}")
             shutil.rmtree(new_dir)
 
 
