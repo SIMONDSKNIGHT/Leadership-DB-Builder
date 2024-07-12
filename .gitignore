@@ -195,3 +195,4 @@ work_history_errors.csv
 work_history_cleaner.csv
 toomany.csv
 test2.csv
+*.csv

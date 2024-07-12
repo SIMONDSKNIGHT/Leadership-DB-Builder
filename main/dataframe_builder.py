@@ -5,6 +5,13 @@ import json
 from datetime import datetime
 import sys
 import time
+from work_history_processor import WorkHistoryProcessor
+import re
+from q_parser import QParser
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import re
+
 
 
 
@@ -235,7 +242,7 @@ class DataFrameBuilder:
 
         self.sumdf = self.sumdf[["TSE:","Company Name","Name","DOB","Job Title","External","year joined","current job","last job","Work History","Footnotes","External Info","which table?","Company Footnotes","error","Document Title","Submission Date","period end","type","document code"
 ]]
-    def lastjob(self):
+    def ep_parser(self):
         id = []
         #add empty current job column to self.sumd
         self.sumdf['current job'] = ""
@@ -312,50 +319,34 @@ class DataFrameBuilder:
         self.sumdf['Last External Job'] = ""
         self.sumdf['Year Joined'] = ""
         self.sumdf['Concurrent Roles'] = ""
+        self.sumdf['Recent Job Change'] = ""
         #for each of the non external directors, go through their
 
         for index, row in self.sumdf.iterrows():
             counter = 0
+            print(row['WH Error'])
+            if row['WH Error']!=1:
+                continue
             if row ['External'] == True:
-                text = row ['Work History']
-                index_nen = [pos for pos, char in enumerate(text) if char == '年']
-                #split the text by the position of the 年
-                text = [text[i-4:j-4] for i, j in zip(index_nen, index_nen[1:]+[len(text)+4])]
-                #remove space from all items
-                text = [t.replace(' ', '') for t in text]
-                text = [t.replace('　', '') for t in text]
+                text = row ['Work History'].split(';')
+
                 output = ''
-                printo = False
-                if row['TSE:'] == 7731:
-                    print (row['Name'])
-
-                if row['Name'].replace(' ','')   =='蛭田史郎':
-                    printo=True
-                    print('EEE')
-                if row['Name'].replace('　','')   =='蛭田史郎':
-                    printo=True
-                    print('EESE')
-
+    
                 for i, t in enumerate(text):
-                    if printo == True:
-                        print (t)
-                    if '現役'in t or '現任' in t or '兼職' in t or '現' in t[-4:]or '現在に至る'in t or i == len(text):
+
+                    if '現役'in t or '現任' in t or '兼職' in t or '兼'in t or '現' in t[-4:]or '現在に至る'in t or i == len(text):
                         
-                        t= t.split('月')
-                        if len(t)>1:
-                            t= t[1]
-                        else:
-                            t= t[0]
+
+                        
                         t.replace('現在に至る', '')
                         t.replace('現役', '')
                         t.replace('重要な兼職', '')
                         t.replace('兼職', '')
+                        t.replace('兼', '')
                         t.replace('現任', '')
                         t.replace('現', '')
                         t.replace('（）', '')
                         t.replace('()', '')
-                        if printo:
-                            print(t)
 
                         output += t
                         output+= ', '
@@ -366,81 +357,65 @@ class DataFrameBuilder:
                     self.sumdf.loc[index, 'error'] += 'Error no current job found: no most recent job, '
                     # print('exception line 271',row['TSE:'], row['Name'])
                 self.sumdf.loc[index, 'Concurrent Roles'] = output
-            
-                    
-
             if row['External'] == False:
-               
-                text = row['Work History']
-                index_nen = [pos for pos, char in enumerate(text) if char == '年']
-                #split the text by the position of the 年
-                text = [text[i-4:j-4] for i, j in zip(index_nen, index_nen[1:]+[len(text)+4])]
-                #remove space from all items
-                text = [t.replace(' ', '') for t in text]
-                text = [t.replace('　', '') for t in text]      
-                output = ''
+                #first figure out the most recent internal job, then figure out the most recent external job
+                text = row['Work History'].split(';')    
+                internal = ''
+                external = ''
+                concurrent = ''
+                year_joined = ''
+                last_job_change = ''
+                joined = False
                 for i, t in enumerate(text):
                     if i == len(text) - 1:
-                        self.sumdf.loc[index, 'Last Internal Job'] = text[i-1]
+                        if internal != '':
+                           internal += ', '
+                        internal +=text[i-1]
+                        last_job_change = t.split('::')[0]
+                        if last_job_change[4]!='/':
+                            print(last_job_change)
+                        self.sumdf.loc[index, 'Recent Job Change'] = last_job_change
+                        break
+
+                    
                     if '当社入社' in t:
-                        self.sumdf.loc[index, 'Year Joined'] = t
+                        year_joined = t.split('::')[0]
                         counter += 1
                         #break off the first section of the text that includes the date
-                        if '月' in t:
-                            
-                            t= t.split('月')
-                            
-                            t= t[0]+'月'
-                            if i > 0:
-                                self.sumdf.loc[index, 'Last External Job'] = text[i-1]
-                            
+                        external = text[i-1]
+                        joined = True
+
+                    
+                    if '現役'in t or '現任' in t or '兼職' in t or '兼'in t or '現' in t[-4:]or '現在に至る'in t or i == len(text):
                         
-                            
-                        else:
-                            if pd.isna(self.sumdf.loc[index, 'error']):
-                                self.sumdf.loc[index, 'error'] = ''
-                            self.sumdf.loc[index, 'error'] += 'Error job  year formatting could be incorrect, '
+
+                        t.replace('現在に至る', '')
+                        t.replace('現役', '')
+                        t.replace('重要な兼職', '')
+                        t.replace('兼職', '')
+                        t.replace('兼', '')
+                        t.replace('現任', '')
+                        t.replace('現', '')
+                        t.replace('（）', '')
+                        t.replace('()', '')
+                        # if joined:
+                        #     if internal != '':
+                        #         internal += ', '
+                        #     internal += t
+                        # else:
+                        if concurrent != '':
+                            concurrent += ', '
+                        concurrent +=t
+                    if internal == '':
+                        print('error: no', row['TSE:'], row['Name'])
+                self.sumdf.loc[index, 'Last Internal Job'] = internal
+                self.sumdf.loc[index, 'Last External Job'] = external
+                self.sumdf.loc[index, 'Year Joined'] = year_joined
+                self.sumdf.loc[index, 'Concurrent Roles'] = concurrent
+                self.sumdf.loc[index, 'Recent Job Change'] = last_job_change
 
 
-                        output = str(t)
-                    if counter > 1:
-                        if pd.isna(self.sumdf.loc[index, 'error']):
-                            self.sumdf.loc[index, 'error'] = ''
-                        self.sumdf.loc[index, 'error'] += 'Error multiple join dates found, '
-                        # print('exception line 302 df builder',row['TSE:'], row['Name'])
-                
-                if output == '':
-                    
-                    if pd.isna(self.sumdf.loc[index, 'error']):
-                        self.sumdf.loc[index, 'error'] = ''
-
-                    
-                    self.sumdf.loc[index, 'error'] += 'Error no year joined found, '
-                    # print('exception line 306',row['TSE:'], row['Name'])
-                self.sumdf.loc[index, 'year joined'] = output
         print('DONE')
-    def get_latest_employee(self):
-        #go throught the arraay and return the most recent employee
-        largest_date = '0'
-        index_list = [] 
-        for index, row in self.sumdf.iterrows():
-            date = row['year joined']
-            if str(date) > str(largest_date):
-                try:
-                    number = int(date[:4])
-                    largest_date = date
-                    index_list = [index]
-                except:
-                    print('error', date, row['TSE:'], row['Name'])
-                    if pd.isna(self.sumdf.loc[index, 'error']):
-                        self.sumdf.loc[index, 'error'] = ''
-
-                    self.sumdf.loc[index, 'error'] += 'Error year joined formatting could be incorrect, '
-            elif date == largest_date:
-                index_list.append(index)
-        print(largest_date)
-        for i in index_list:
-            print(self.sumdf.loc[i, 'TSE:'], self.sumdf.loc[i, 'Name'])
     def sort_officers(self):
         for id in self.sumdf['TSE:'].unique():
             df = self.sumdf[self.sumdf['TSE:'] == id].copy()
@@ -468,6 +443,27 @@ class DataFrameBuilder:
                         print('row dropped')
 
             # Update the instance variable with the new dataframe
+
+  
+    def work_history_processer(self):
+        issues = 0
+        self.sumdf['WH Error'] = 0
+        processor = WorkHistoryProcessor()
+        for index, row in self.sumdf.iterrows():
+            problem = 0
+            text = row['Work History']
+            processor.process_work_history(text)
+            processor.split_text()
+            for line in processor.get_text():
+                problem_cur = self.verifier(line)
+                
+                if problem_cur>problem:
+
+                    problem = problem_cur
+                    
+            self.sumdf.loc[index, 'WH Error'] = problem
+            self.sumdf.loc[index, 'Work History'] = ';'.join(processor.get_text())
+        print(issues)   
     def period_fix(self):
         #check that date formatting is yyyy-mm-dd
         for index, row in self.sumdf.iterrows():
@@ -485,146 +481,103 @@ class DataFrameBuilder:
             # If successful, format it back to yyyy-mm-dd to ensure consistent formatting
             formatted_date = parsed_date.strftime('%Y-%m-%d')
             self.sumdf.at[index, 'period end'] = formatted_date
-           
-    def jp_year_formatter(self, year):
-        era_start_year = {
-            '平成': 1989,
-            '昭和': 1926,
-            '令和': 2019,
-            '大正': 1912,
-            '明治': 1868
-        }
-        era = year[:2]
-        yearval = year[2:4]
-        yearval = int(year)
-        era_start = era_start_year[era]
-        yearval += era_start
-        output = str(yearval)+year[4:]
-    def work_history_cleaner(self):
-        unique_values = self.sumdf['TSE:'].unique()
-        self.sumdf['WH Error'] = ""
-        #dataframe with each of the TSE's
-        df = pd.DataFrame(unique_values, columns=['TSE:'])
-        df['error reason'] = ""
-        df['Formatted?'] = True
-        df['failed members'] = ""
+            
+            
+
+    def verifier(self,text):
+
+        
+        #screen for problems
+        #if 年 appears after :: then it is a problem
+        if re.search(r':.*年', text):
+            #ignore if next kanji is 金
+            if re.search(r':.*年金', text):
+                pass
+                
+            elif re.search(r':.*年齢', text):
+                pass
+            elif re.search(r':.*(?<!\d)年', text):
+                pass
+            elif re.search(r':.*年\s*退', text):
+                pass
+            else:
+                print("Problem: 年 appears after ::", text)
+                
+                return 2
+        #if 月 appears after :: then it is a problem
+        if re.search(r':.*月', text):
+            if re.search(r':.*月島', text):
+                pass
+            elif re.search(r':.*(?<!\d)月', text):
+                pass
+            else:
+                print("Problem: 月 appears after ::", text)
+                return 2
+        #if there is no content after :: 
+        if re.search(r':$', text):
+            print("Problem: No content after ::", text)
+            return 3
+        return 1
+    def create_quarterly_reports(self):
+        QDF = pd.DataFrame()
+        
+        period_end = {}
         for index, row in self.sumdf.iterrows():
-            tse = row['TSE:']
-            text = row ['Work History']
-            name = row['Name']
-            index_nen = [pos for pos, char in enumerate(text) if char == '年' and text[pos-1] != '同' and text[pos+1]!='金']
-            #split the text by the position of the 年
-            text = [text[i-4:j-4] for i, j in zip(index_nen, index_nen[1:]+[len(text)+4])]
+            if row['type'] == 'annual':
+                if row["TSE:"]not in period_end:
+                    period_end[row["TSE:"]] = row['Period End']
+        for TSE in period_end:
+            #go to that documents folder in the quarterly reports
+            filedir = os.listdir('files/'+str(TSE))
+            #reverse order of filedir
+            filedir = sorted(filedir)
+            period_end_date = period_end[TSE]
+            # note the day is formatted in the format yyyy-mm-dd
+            #use datetime to parse the date
+            try:
+                period_end_date = datetime.strptime(period_end_date, '%Y-%m-%d')
+            except:
+                period_end_date = datetime.strptime(period_end_date, '%Y/%m/%d')
             
             
-            for text_index, t in enumerate(text):
+            for file in filedir:
+                if file == ".DS" or file == ".DS_Store":
+                    continue
+            
+                #read the json file
+                jsonfile = 'files/'+str(TSE)+'/'+file+'/'+file+'.json'
 
-                nen_index = [pos for pos, char in enumerate(t) if char == '年' and t[pos-1] != '同']
-                gatsu_index = [pos for pos, char in enumerate(t) if char == '月' and (t[pos-3] != '同' or t[pos-4]!='同')]
-                for i in nen_index:
-                    if i!=len(t)-1:
-                        if t[i+1] == '金':
-                            nen_index.remove(i)
-
-
-
+                with open(jsonfile, 'r') as file1:
+                    data = json.load(file1)
+                #get the period end date and add a day
                 
-                if type(nen_index) == list and type(gatsu_index) == list:
-                    if len(nen_index) != 1 or len(gatsu_index)<1:
-                        df.loc[df['TSE:'] == tse, 'Formatted?'] = False
-                        df.loc[df['TSE:']==tse, 'error reason'] = 'Error in date formatting: incorrect number of 年 or 月 characters found'
-                        df.loc[df['TSE:']==tse, 'failed members'] += row['Name'] + ', '
-                        self.sumdf.loc[index, 'WH Error'] = f"{text_index}"
-                        
-                        # print(1, t, tse, name)
-                        break
-                if len(gatsu_index)>1:
-                    df.loc[df['TSE:'] == tse, 'Formatted?'] = False
-                    df.loc[df['TSE:']==tse, 'error reason'] = 'Error in date formatting: incorrect number of 年 or 月 characters found'
-                    df.loc[df['TSE:']==tse, 'failed members'] += row['Name'] + ', '
-                    self.sumdf.loc[index, 'WH Error'] = f"{text_index}"
-                    print(t,tse,name)
-                    break
-                nen_index = nen_index[0]
-                gatsu_index = gatsu_index[0]
-                
-                if nen_index != 4 or (gatsu_index != 6 and gatsu_index != 7):
-                    df.loc[df['TSE:'] == tse, 'Formatted?'] = False
-                    df.loc[df['TSE:']==tse, 'error reason'] = 'Error in date formatting: incorrect index positions'
-                    df.loc[df['TSE:']==tse, 'failed members'] += row['Name'] + ', '
-                    self.sumdf.loc[index, 'WH Error'] = f"{text_index}"
-                    # print(2, t, tse, name)
-                    break
                 try:
-                    int(t[:nen_index])
-                    int(t[nen_index+1:gatsu_index])
+                    file_date=  datetime.strptime(data['periodStart'], '%Y-%m-%d')
                 except:
-                    df.loc[df['TSE:'] == tse, 'Formatted?'] = False
-                    df.loc[df['TSE:']==tse, 'error reason'] = 'Error in date formatting: non-numeric characters found'
-                    df.loc[df['TSE:']==tse, 'failed members'] += row['Name'] + ', '
-                    self.sumdf.loc[index, 'WH Error'] = f"{text_index}"
-                    # print(3, t, tse, name)
-                    break
-                content = t[gatsu_index+1:]
-                content.replace(' ', '')
-                content.replace('　', '')
-                if content == '':
-                    df.loc[df['TSE:'] == tse, 'Formatted?'] = False
-                    df.loc[df['TSE:']==tse, 'error reason'] = 'Error: no content found'
-                    df.loc[df['TSE:']==tse, 'failed members'] += row['Name'] + ', '
-                    self.sumdf.loc[index, 'WH Error'] = f"{text_index}"
-                    # print(4, t, tse, name)
-                    break
-        df['fail example'] = ""
-        #print number of rows with false
-        print(len(df[df['Formatted?'] == False]))
-        for index, row in df.iterrows():
-            if row['Formatted?'] == False:
-                #find that emplyee in the sumdf and return their work history
-                member = row['failed members'].split(', ')[0]
-                member_wh = self.sumdf[self.sumdf['Name'] == member]['Work History'].iloc[0]
-                df.loc[index, 'fail example'] = member_wh
-        df.to_csv('work_history_errors.csv')
-    def work_history_error_parser(self):
-        for index, row in self.sumdf.iterrows():
-            if row['WH Error']!='':
-                tse = row['TSE:']
-                text = row ['Work History']
-                name = row['Name']
-                index_nen = [pos for pos, char in enumerate(text) if char == '年' and text[pos-1] != '同' and text[pos+1]!='金']
-                #split the text by the position of the 年
-                text = [text[i-4:j-4] for i, j in zip(index_nen, index_nen[1:]+[len(text)+4])]
-                
-                
-                for text_index, t in enumerate(text):
-                    if text_index == int(row['WH Error']):
-                        if len(t)<9:
-                            print(text)
-                        else:
-                            print(t)        
+                    try:
+                        file_date = re.findall(r'\d{4}/\d{2}/\d{2}', data['docDescription'])[0]
                         
+                    except:
+                        print(data['docDescription'])
+                        continue
+                    
+                    file_date = datetime.strptime(file_date, '%Y/%m/%d')
+                
+                if TSE ==1980 and'四半期報告書' in data['docDescription'] :
+                    print(file_date)
+
                     
                 
+                # file_date = file_date.strftime('%Y-%m-%d')
+                # period_end_date = (period_end_date).strftime('%Y-%m-%d')
+                if file_date > period_end_date:
 
-    
-if __name__ == '__main__':
-
-    builder = DataFrameBuilder()
-
-    builder.read_csv1('sumdf.csv')
-    builder.lastjob()
-    builder.get_latest_employee()
-    builder.to_csv('sumdf.csv')
-
-
-    # builder.dataframe_rearranger('sumdf.csv')
-    # builder.tag_external_directors()
-    # builder.to_csv('sumdfe.csv')
-    # print("Complete")
-    # dicto = builder.scan_for_external_directors()
-    # for key in dicto:
-    #     if dicto[key] == False:
-    #         print(key)
-
-
+                    if '四半期報告書' in data['docDescription']:
+                        print(TSE)
+                        csv_filepath = 'files/'+str(TSE)+'/'+str(file)+'/'+str(file)+'.zip'
+                        qparser = QParser(csv_filepath)
+                        qparser.parse()
                 
+
+
+

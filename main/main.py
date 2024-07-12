@@ -161,37 +161,46 @@ def test_logic(ids):
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
     # dataframe_builder_instance.build_dataframes("files")
     # dataframe_builder_instance.to_csv("test.csv")
-    dataframe_builder_instance.read_csv1("test.csv")
+    # dataframe_builder_instance.read_csv1("test.csv")
     
     
-    # # # 
-    # # # print(len(df))
-    #remove duplicates of the same person
-    dataframe_builder_instance.sort_officers()
+    # # # # 
+    # # # # print(len(df))
+    # #remove duplicates of the same person
+    # dataframe_builder_instance.sort_officers()
 
-    dataframe_builder_instance.to_csv("test1.csv")
-    #parses incorrectly input periods
-    dataframe_builder_instance.period_fix()
-    dataframe_builder_instance.to_csv("test1.csv")
-    #adds external directors column
-    dataframe_builder_instance.tag_external_directors()
-    dataframe_builder_instance.to_csv("test1.csv")
+    # dataframe_builder_instance.to_csv("test1.csv")
+    # #parses incorrectly input periods
+    # dataframe_builder_instance.period_fix()
+    # dataframe_builder_instance.to_csv("test1.csv")
+    # #adds external directors column
+    # dataframe_builder_instance.tag_external_directors()
+    # dataframe_builder_instance.to_csv("test1.csv")
     
-    dataframe_builder_instance.previous_jobs()
-    df = dataframe_builder_instance.get_sumdf()
-    dataframe_builder_instance.to_csv("test2.csv")
-    dataframe_builder_instance.work_history_cleaner()
-    dataframe_builder_instance.work_history_error_parser()
-    dataframe_builder_instance.to_csv('toomany.csv')
-    with open ("work_history_errors.csv",'r') as f:
-        errordf = pd.read_csv(f)
-    No_Errors = False
-    while not No_Errors:
-        errorsvals = errordf['WH Error'].values()
-        if errorsvals == ['']:
-            No_Errors = True
-        else:
-            print(errorsvals)
+    
+    # dataframe_builder_instance.to_csv("test2.csv")
+    # dataframe_builder_instance.work_history_processer()
+    # dataframe_builder_instance.previous_jobs()
+    # df = dataframe_builder_instance.get_sumdf()
+    # # TSE:,Company Name,Name,DOB,Job Title,Work History,External,Document Title,Submission Date,Period End,type,error,Footnotes,Company Footnotes,document code,Last Internal Job,Last External Job,Year Joined,Concurrent Roles,year joined,WH Error
+
+
+    # df = df[['TSE:', 'Company Name', 'Name', 'DOB', 'External', 'Last Internal Job', 'Last External Job', 'Year Joined', 'Concurrent Roles','WH Error', 'Recent Job Change']]
+    # df = df.sort_values(by='Recent Job Change', ascending=False)
+    # df.to_csv("testo.csv")
+    # #get the number of rows in testo that either have External == True or External == False and WH Error ==3
+    # print(df[(df['External']==True) | ((df['External']==False) & (df['WH Error']!=3))].shape[0])
+    # print(df[((df['External']==False) & (df['WH Error']==3))].shape[0])
+    # print(df[((df['External']==False) & (df['WH Error']==3))]['TSE:'].unique())
+    # print(df[((df['External']==False) & (df['WH Error']==3))]['TSE:'].nunique())
+
+
+    # dataframe_builder_instance.add_quarterly_reports()
+    # dataframe_builder_instance.to_csv("toomany.csv")
+    dataframe_builder_instance.read_csv1("toomany.csv")
+    dataframe_builder_instance.create_quarterly_reports()
+
+
 
 
 
