@@ -132,5 +132,6 @@ class RestApiInterface:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:  # Filter out keep-alive new chunks
                     file.write(chunk)
+        return local_filename
  
 

@@ -11,6 +11,7 @@ class CSVParser():
         self.csv_file_path = csv_file_path
         self.directordf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes'])
         self.officerdf= pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes'])
+        self.errors = []
         
 
          
@@ -46,11 +47,11 @@ class CSVParser():
                 if rows != []:
                     print(f"document {self.csv_file_path} contains mismatched columns")
                 else:
-                    print(f"document {self.csv_file_path} does not contain the required columns")
+                    print(f"document {self.csv_file_path} does not contain the required columns main")
             #find the distance between the rows/ it is the same every time
             distance = rows[1] - rows[0]
             #create a new dataframe with the columns Job Title, Name, DOB, Work History, Footnotes
-            self.directordf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table?'])
+            self.directordf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table'])
             #iterate through the rows and extract the data
 
             try:
@@ -105,18 +106,27 @@ class CSVParser():
             
                 footnotes += stock.iloc[i]['値']
                 i += 1
+            
                 
             #write the footnotes in as a column value in the new dataframe
             self.directordf['Company Footnotes'] = footnotes
             self.directordf['External Info'] = external_director
-            self.directordf['which table?'] = 'director'
+            self.directordf['which table'] = 'director'
             #delete the extracted files
+            
             
             if self.different_format==True:
                 #create document called you're not crazy
                 with open('youre_not_crazy.txt', 'a') as file:
                     file.write('youre not crazy')
-            rows = []
+            
+        except Exception as e:
+            self.errors += [f"Error parsing CSV file: {self.csv_file_path} for directors", e]
+            
+
+        rows = []
+
+        try:
             #build officer df
             for index, row in stock.iterrows():
                 if row['要素ID'] == 'jpcrp_cor:OfficialTitleOrPositionInformationAboutExecutiveDirectors':
@@ -127,12 +137,19 @@ class CSVParser():
                         rows.append(index)
                 if rows != []:
                     print(f"document {self.csv_file_path} contains mismatched columns")
+                    self.errors += [f"document {self.csv_file_path} contains mismatched columns"]
                 else:
-                    print(f"document {self.csv_file_path} does not contain the required columns")
+                    pass
+            if len(rows) == 0:
+                Exception("No rows found")
             #find the distance between the rows/ it is the same every time
             distance = rows[1] - rows[0]
             #create a new dataframe with the columns Job Title, Name, DOB, Work History, Footnotes
-            self.officerdf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table?'])
+
+            
+            #PRINT THE ROWS OF THE DIRECTOR DF
+            
+            self.officerdf = pd.DataFrame(columns=['Job Title', 'Name', 'DOB', 'Work History', 'Footnotes','External Info','which table'])
             #iterate through the rows and extract the data
 
             try:
@@ -141,38 +158,39 @@ class CSVParser():
                     self.different_format = True
             except:
                 pass
+            
             for row in rows:
                 
                 if 'OfficialTitleOrPositionInformationAboutExecutiveDirectors' in stock.iloc[row]['要素ID']:
                     job_title = stock.iloc[row ]['値']
                 else:
                     job_title = 'misaligned columns'
-                    print('1')
+                    
                     self.different_format = True
                 if 'NameInformationAboutExecutiveDirectors' in stock.iloc[row+1]['要素ID']:
                     name = stock.iloc[row + 1]['値']
                 else:
                     name = 'misaligned columns'
-                    print('2')
+                    
                     self.different_format = True
                 if  'DateOfBirthInformationAboutExecutiveDirectors' in stock.iloc[row+2]['要素ID']:
 
                     dob = stock.iloc[row + 2]['値']
                 else:
                     dob = 'misaligned columns'
-                    print('3')
+                    
                     self.different_format = True
                 if 'CareerSummaryInformationAboutExecutiveDirectors' in stock.iloc[row+3]['要素ID']:
                     work_history = stock.iloc[row +3]['値']
                 else:
                     work_history = 'misaligned columns'
-                    print('4')
+                    
                     self.different_format = True
                 if 'TermOfOfficeInformationAboutExecutiveDirectors' in stock.iloc[row+4]['要素ID']:
                     work_history = stock.iloc[row +3]['値']
                 else:
                     work_history = 'misaligned columns'
-                    print('5')
+                    
                     self.different_format = True
 
                 footnotes = stock.iloc[row + 4]['値']
@@ -192,16 +210,20 @@ class CSVParser():
             #write the footnotes in as a column value in the new dataframe
             self.officerdf['Company Footnotes'] = footnotes
             self.officerdf['External Info'] = external_director
-            self.officerdf['which table?'] = 'officer'
+            self.officerdf['which table'] = 'officer'
             #delete the extracted files
             
 
             shutil.rmtree(new_dir)
         except Exception as e:
-            print(f"Error parsing CSV file: {self.csv_file_path} ", e)
-            with open('failed.txt', 'a') as file:
-                file.write(f"Error parsing CSV file: {self.csv_file_path} {e}")
+            self.errors+= [f"Error parsing CSV file: {self.csv_file_path} for officers", e]
+            #get stack trace
+            import traceback
+            #print head of the csv file
+            
+            
             shutil.rmtree(new_dir)
+        
 
 
 
@@ -212,6 +234,9 @@ class CSVParser():
     def formatQ(self):
 
         return self.different_format
+    def get_errors(self):
+        return self.errors
+    
 
 if __name__ == '__main__':
     parser = CSVParser('files/1332/S100R66L/S100R66L.zip')

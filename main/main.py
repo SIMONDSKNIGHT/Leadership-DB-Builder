@@ -11,8 +11,12 @@ import dataframe_builder
 import pandas as pd
 import csv_querier
 import time
+dl_file_path = 'files'
 
-
+# format for the commandline command is python main.py --forceupdate --default --test
+# --forceupdate updates the list of reports
+# --default uses default settings where it doesn't require you to type stuff out
+# --test runs the test logic instead of the main program
 def main():
     data_directory = 'data/'
     try:
@@ -42,7 +46,7 @@ def main():
     try:
         excel_parser.read(excel_filepath)
     except:
-        print('what')
+        print('failure')
         Exception('Error setting rest server')
         #kill process
         sys.exit()
@@ -56,8 +60,10 @@ def main():
             f.write(i+'\n')
 
     if args.test:
+
+        #TEST CODE THAT JUMPS DOWN TO THE BELOW TEST CODE SECTION skipped for, would you believe it, testing;
         test_logic(ids)
-        print("Test complete.")
+        print("forgot to disable test logic, bonehead.")
         exit()
     #write ids to file
 
@@ -88,24 +94,31 @@ def main():
             if document > backdate:
                 backdate = document
             break
+        
     rest_server_interface = rest_api.RestApiInterface(rest_server_url, api_key,ids,backdate,today)
     rest_server_interface.save_reports()
     rest_server_interface.write_reports()
+    #TODO  ### add conditional that only does this if its a fresh install###
+    # check if the csv already exists up to a date (()()(())(()())()(()()()()()())(())(()))
+    # csv_file_path = 'data/main.csv'
+    # if os.path.exists(csv_file_path):
+    #     # read the existing csv file
+    #     existing_data = pd.read_csv(csv_file_path)
+    #     # get the latest date in the existing data
+    #     latest_date = existing_data['Date'].max()
+    #     # compare the latest date with the backdate
+    #     if latest_date >= backdate:
+    #         print(f"CSV file already exists up to {latest_date}. Skipping data update.")
+    #         return
+    # else:
+    #     print("CSV file does not exist. Creating new file.")
+    
+    # continue with the rest of the code to update the data and write to the csv file
+    rest_server_interface.read_reports()
     reports = rest_server_interface.get_reports()
+    # if main.csv does not exist but there is a file in data then read in the old data, append new data and write to 
     for jsonobject in tqdm(reports):
-        """ in actual operation what needs to be done
-        is that the csv parser is generated before this loop
-        and then for each id, it needs to find the most recent
-        the yearly securities report, and download the requisite
-        information and checking it for the presence of the iunfo
-        while also creating a dataframe that lists the date of publishing 
-        of the latest dataframe, and scan more if it fails
 
-        then it needs to go through all of the lists, pick the one with
-        least up to date information, download those quarterlies, and then
-        update that one before moving onto the next one.
-
-        """
         try:
             tseNO = jsonobject['secCode'][:4]
         except:
@@ -117,88 +130,225 @@ def main():
         #check if the document folder exist
         if not os.path.exists(f'files/{tseNO}/{docID}'):
             os.makedirs(f'files/{tseNO}/{docID}')
+        #print tseno if directory is empty
+        if len(os.listdir(f'files/{tseNO}/{docID}')) == 0:
+            print(f"Document {docID} for {tseNO} does not exist.  Downloading.")
         else:
             # behaviour only needed for initial install. TODO: remove and make the file delete itself
             print(f"Document {docID} for {tseNO} already exists. Skipping download.")
             continue
         #write the jsonobject to the folder
+
         with open(f'files/{tseNO}/{docID}/{docID}.json','w') as f:
             json.dump(jsonobject,f,indent=4,ensure_ascii=False)
-        # rest_server_interface.download_report(docID,tseNO,2)
-        # rest_server_interface.download_report(docID,tseNO,5)
+
     ### call this one the loop, this is the yearly loop
-    file_path = 'files/'
+    
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
-    for tseno in os.listdir(file_path):
+    # files_sorted = sorted(os.listdir(dl_file_path))
+    # for tseno in files_sorted:
+    #     success = False
+        
+    #     if tseno == '.DS_Store':
+    #         continue
+    #     TSE_path = os.path.join(dl_file_path, tseno)
+    #     sorted_docIDS=sorted(os.listdir(TSE_path))
+    #     sorted_docIDS = reversed(sorted_docIDS)
+        
+    #     for docid in sorted_docIDS :
+    #         if docid == ".DS" or docid == ".DS_Store":
+    #             continue
+    #         #open the info text file
+    #         with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
+    #             data = json.load(file)
+    #         document_title = data.get('docDescription')
+        
+    #         del data
+    #         if "有価証券報告書" not in document_title:
+    #             continue
+
+    #         # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+    #         #if document does not exist download it
+    #         check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
+    #         if not os.path.exists(check_file):
+    #             rest_server_interface.download_report(docid,tseno,5)
+    #         success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
+            
+            
+            
+
+    #         #delete the dowloaded document in the files folder whos filepath is called filename
+            
+    #         # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+
+
+    #         if success:
+    #             print(f"document {docid} downloaded and added to df")
+    #             success = True
+    #             break
+        
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_1.csv")
+    dataframe_builder_instance.read_csv1("TEST_CSV_UTIL_1.csv")
+    dataframe_builder_instance.sort_officers()
+    dataframe_builder_instance.period_fix()
+    
+
+    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
+    
+
+    
+    print("Downloaded and parsed all yearly reports.")
+    dataframe_builder_instance.work_history_process()
+    # dataframe_builder_instance.previous_jobs()
+    # dataframe_builder_instance.external_dates()
+    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+
+
+
+
+
+
+
+    exit()
+
+
+    ###LOGIC BELOW IS FOR PROCESSING QUARTERLY REPORTS, CURRENTLY NON FUNCTIONAL, HANDLING DATES
+    files_sorted = sorted(os.listdir(dl_file_path))
+    for tseno in files_sorted:
+        success = False
+        
         if tseno == '.DS_Store':
             continue
-        TSE_path = os.path.join(file_path, tseno)
+        TSE_path = os.path.join(dl_file_path, tseno)
         sorted_docIDS=sorted(os.listdir(TSE_path))
-        sorted_docIDS = reversed(sorted_docIDS)
+        #GET THE DATE OF THE TSE'S REPORT IN THE DATAFRAME BUILDERS DATAFRAME
+        date = dataframe_builder_instance.get_latest_date(tseno)
+        if date == 'NA':
+            continue
+
+        doc_date = dataframe_builder_instance.get_latest_date(tseno)
+        try:
+            parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
+        except:
+            try:
+                parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
+            except:
+                # Handle incorrect date format if necessary
+                
+                parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+
+        
         for docid in sorted_docIDS :
             if docid == ".DS" or docid == ".DS_Store":
                 continue
-
             #open the info text file
-            with open(file_path+'/'+tseno+'/'+tseno+'/'+docid+'.json', 'r') as file:
+            with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
                 data = json.load(file)
             document_title = data.get('docDescription')
-        
-            del data
-            if "有価証券報告書" not in document_title:
+            doc_date = data.get('period end')
+            #check the format of docdate and convert to datetime
+            try:
+                parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
+            except:
+                try:
+                    parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
+                except:
+                    # Handle incorrect date format if necessary
+                    
+                    parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+            if parsed_date < date:
                 continue
-            # rest_server_interface.download_report(document_code,sec_code,5)  UNCOMMENT THIS FOR ACTUAL OPERATION
-            success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
-            if success:
-                pass
-                
+            del data
+            if "四半期報告書" not in document_title:
+                continue
 
+            # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+            #if document does not exist download it
+            check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
+            if not os.path.exists(check_file):
+                rest_server_interface.download_report(docid,tseno,5)
+            success = dataframe_builder_instance.add_to_quarterly_dataframe(tseno,docid)
             
+            #delete the dowloaded document in the files folder whos filepath is called filename
+            
+            # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+        
 
-    print("Downloaded all reports.")
+
+    
+
     
 def test_logic(ids):
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
     # dataframe_builder_instance.build_dataframes("files")
     # dataframe_builder_instance.to_csv("test.csv")
-    # dataframe_builder_instance.read_csv1("test.csv")
+    dataframe_builder_instance.read_csv1("TEST_CSV_UTIL_1.csv")
     
     
-    # # # # 
+    """stuff that works"""
     # # # # print(len(df))
     # #remove duplicates of the same person
-    # dataframe_builder_instance.sort_officers()
+    dataframe_builder_instance.sort_officers()
 
-    # dataframe_builder_instance.to_csv("test1.csv")
     # #parses incorrectly input periods
-    # dataframe_builder_instance.period_fix()
+
+    dataframe_builder_instance.period_fix()
+        
+    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
     # dataframe_builder_instance.to_csv("test1.csv")
     # #adds external directors column
-    # dataframe_builder_instance.tag_external_directors()
+    
+    
     # dataframe_builder_instance.to_csv("test1.csv")
+    """stuff that works end"""
     
-    
+
+
     # dataframe_builder_instance.to_csv("test2.csv")
-    # dataframe_builder_instance.work_history_processer()
-    # dataframe_builder_instance.previous_jobs()
-    # df = dataframe_builder_instance.get_sumdf()
+    dataframe_builder_instance.work_history_processer()
+    dataframe_builder_instance.previous_jobs()
+    dataframe_builder_instance.external_dates()
+    df = dataframe_builder_instance.get_sumdf()
     # # TSE:,Company Name,Name,DOB,Job Title,Work History,External,Document Title,Submission Date,Period End,type,error,Footnotes,Company Footnotes,document code,Last Internal Job,Last External Job,Year Joined,Concurrent Roles,year joined,WH Error
 
 
-    # df = df[['TSE:', 'Company Name', 'Name', 'DOB', 'External', 'Last Internal Job', 'Last External Job', 'Year Joined', 'Concurrent Roles','WH Error', 'Recent Job Change']]
-    # df = df.sort_values(by='Recent Job Change', ascending=False)
-    # df.to_csv("testo.csv")
+    df = df[['TSE:', 'Company Name', 'Name', 'Job Title','DOB', 'External', 'Last Internal Job', 'Last External Job', 'Year Joined', 'Concurrent Roles','WH Error', 'Recent Job Change']]
+    df = df.sort_values(by='Recent Job Change', ascending=False)
+    #drop columns with no year joined
+    df['Year Joined'] = df['Year Joined'].str.strip()
+    #only if 
+    df.to_csv("testo.csv")
+
     # #get the number of rows in testo that either have External == True or External == False and WH Error ==3
     # print(df[(df['External']==True) | ((df['External']==False) & (df['WH Error']!=3))].shape[0])
     # print(df[((df['External']==False) & (df['WH Error']==3))].shape[0])
     # print(df[((df['External']==False) & (df['WH Error']==3))]['TSE:'].unique())
     # print(df[((df['External']==False) & (df['WH Error']==3))]['TSE:'].nunique())
+    df = dataframe_builder_instance.get_sumdf()
+    #write a csv of just the work histories in the df
+    with open('work_histories.csv','w') as f:
+        df['Work History'].to_csv(f)
 
+    
+    indices_to_drop = []
+    for index, row in df.iterrows():
+        if row["WH Error"]==3 and "取締" not in row["Job Title"]:
+            indices_to_drop.append(index)
+    
+    df.drop(indices_to_drop, inplace=True)
+
+
+    for tse in df["TSE:"].unique() :
+        total_rows = len(df[df['TSE:'] == tse])
+        external_rows = len(df[(df['TSE:'] == tse) & (df['External'] == True)])
+        percentage = (external_rows / total_rows) * 100
+        company_name = df[df['TSE:'] == tse]['Company Name'].iloc[0]
+        print(f"company {company_name}, External Percentage: {percentage}%")
 
     # dataframe_builder_instance.add_quarterly_reports()
     # dataframe_builder_instance.to_csv("toomany.csv")
-    dataframe_builder_instance.read_csv1("toomany.csv")
-    dataframe_builder_instance.create_quarterly_reports()
+    # dataframe_builder_instance.read_csv1("toomany.csv")
+    # dataframe_builder_instance.create_quarterly_reports()
 
 
 
@@ -269,6 +419,7 @@ def test_logic(ids):
     # for key in dicto:
     #     if dicto[key]>1:
     #         print(f"{key}:{dicto[key]}")
+
     
     
 
