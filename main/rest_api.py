@@ -27,6 +27,7 @@ class RestApiInterface:
         pbar = tqdm(total=(datetime.strptime(self.end_date, "%Y/%m/%d") - datetime.strptime(self.start_date, "%Y/%m/%d")).days)
         while self.end_date >= self.start_date:
             day_files= self.day_request(mode)
+            print(day_files)
 
             day_files = self.sort_reports(day_files, report_type)
 
@@ -77,6 +78,14 @@ class RestApiInterface:
         formatted_date = self.start_date.replace('/', '-')
         response = requests.get(f'{self.rest_server_url}.json?date={formatted_date}&type={mode}&Subscription-Key={self.api_key}')
         json_data = response.json()
+        print(json_data)
+        try:
+            if json_data['results'] == []:
+                print('no results')
+                
+        except:
+            print('no results')
+            return json_data
         time.sleep(0.1)
 
         return json_data

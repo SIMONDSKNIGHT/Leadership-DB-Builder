@@ -4,6 +4,7 @@ from csv_parser import CSVParser
 import json
 from datetime import datetime
 import sys
+from tqdm import tqdm
 import time
 from work_history_processor import WorkHistoryProcessor
 import re
@@ -11,6 +12,7 @@ from q_parser import QParser
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import re
+import company_identifier as ci
 
 
 
@@ -28,7 +30,7 @@ class DataFrameBuilder:
         self.failed['error'] = ""
         self.misformat = set()
         self.TEST_counter = 0
-        self.tempdf = pd.DataFrame(columns=['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title', 'Work History', 'Footnotes', 'Company Footnotes','external' ,'Document Title', 'Submission Date'])
+        self.tempdf = pd.DataFrame()
 
     
     def add_to_dataframe(self, tseno, docid, debug = False):
@@ -142,7 +144,11 @@ class DataFrameBuilder:
         #reorganise the csv so that the order is [TSE:, Company Name, Name, Job Title, DOB, Work History, Footnotes, Company Footnotes, Document Title, Submission Date]
 
         # self.sumdf = self.sumdf[['TSE:', 'Company Name', 'Name', 'Job Title', 'DOB', 'Work History', 'Footnotes', 'Company Footnotes','external' ,'Document Title', 'Submission Date']]
-    def add_to_quarterly_dataframe(self, tseno, docid, debug = False):
+    def check_qr(self, tseno, docid, debug = False):
+        
+        #check that the tempdf is empty
+
+            
 
 
         #read the json file
@@ -174,17 +180,18 @@ class DataFrameBuilder:
         del data
         if "四半期報告書" not in document_title:
             print('dw its meant to quit here')
-            return
+            return False
         
         
 
         #add the columns to the dataframe
         quarterly_parser = QParser('files/'+tseno+'/'+docid+'/'+docid+'.zip')
 
-        quarterly_parser.parse()
-
-        df = quarterly_parser.get_df()
-        return []
+        result = quarterly_parser.check_for_changes()
+        return result
+            
+        
+        
         
   
 
@@ -200,7 +207,21 @@ class DataFrameBuilder:
         # df['type'] = 'annual'  
 
 
+    def parse_qr_pdf(self, tseno, docid, pdf_address, debug = False):
+        pdf_parser = QParser(pdf_address, pdf = True)
+        pdf_parser.remove_pdf_restrictions()
+        pdf_parser.extract_tables(tseno, docid)
+        df = pdf_parser.get_df()
+        self.tempdf = pd.concat([self.tempdf, df], ignore_index=True)
+        del pdf_parser
         
+
+        #write pdf to csv
+        #add to tempdf adding all new columns and having nothing in any nonshared columns
+        
+
+        
+
 
     def clear_tempdf(self):
         self.tempdf = pd.DataFrame(columns=['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title', 'Work History', 'Footnotes', 'Company Footnotes','external' ,'Document Title', 'Submission Date'])
@@ -359,8 +380,14 @@ class DataFrameBuilder:
             self.sumdf.loc[index, 'current job'] = current_job   
     def get_latest_date(self, tseno):
         #get subset of dataframe with tseno
-        df = self.sumdf[self.sumdf['TSE:'] == tseno]
+        try:
+            df = self.sumdf[self.sumdf['TSE:'] == int(tseno)]
+        except:
+            df = self.sumdf[self.sumdf['TSE:'] == tseno]
+
+        
         if df.empty:
+            
             return 'NA'
                 #get the value of the period end date 
         period_end = df['Period End'].max()
@@ -438,14 +465,22 @@ class DataFrameBuilder:
         issues = 0
         self.sumdf['WH Error'] = 0
         self.sumdf['Year Joined'] = ""
+        self.sumdf['Last Company Name'] = ""
+        self.sumdf['role']  = ""
+        self.sumdf['Last Company TSE'] = ""
+        self.sumdf['Year Started At Last Company'] = ""
         processor = WorkHistoryProcessor()
         
         for index, row in self.sumdf.iterrows():
             problem = 0
             text = row['Work History']
+            role = ''
             processor.process_work_history(text)
             
-            processor.split_text()
+            
+            last_company_name = ""
+            last_company_tse = ""
+            last_company_year = ""
             for line in processor.get_text():
                 
                 problem_cur = self.verifier(line)
@@ -453,16 +488,35 @@ class DataFrameBuilder:
                 if problem_cur>problem:
 
                     problem = problem_cur
-            join_date = processor.when_joined()
-            if join_date == 'fail':
-                print(f'Error: no join date found for employee {row["Name"]}, work history: {processor.get_text()   }, employer {row["Company Name"]}')
-            
-            
+            if problem != 3:
+                join_date = processor.when_joined(row['Company Name'])
+                if join_date == 'ERROR':
+                    print(f'Error: no join date found for employee {row["Name"]}, employer {row["Company Name"]}')
+                #get last company name
+                else:
+                    try:
+                        last_company_name, role,last_company_year = processor.last_company(join_date)
+                        if last_company_name == "CURR":
+                            last_company_tse= row['TSE:']
+                    except:
+                        print(f'Error: no last company found for employee {row["Name"]}, employer {row["Company Name"]}')
+
+
+                
+            else:
+                join_date = 'ERROR'
+                if join_date == 'ERROR':
+                    
+                    issues+=1
+            processor.join_text()
+
             self.sumdf.loc[index, 'WH Error'] = problem
-            self.sumdf.loc[index, 'Work History'] = ';'.join(processor.get_text())
+            self.sumdf.loc[index, 'Work History'] = processor.get_text()
             self.sumdf.loc[index, 'Year Joined'] = join_date
-            if join_date == 'fail':
-                issues+=1
+            self.sumdf.loc[index, 'Last Company Name'] = last_company_name
+            self.sumdf.loc[index, 'Last Company TSE'] = last_company_tse
+            self.sumdf.loc[index, 'Year Started At Last Company'] = last_company_year
+            self.sumdf.loc[index, 'role'] = role
         print(issues)
 
           
@@ -494,20 +548,24 @@ class DataFrameBuilder:
         for entry in error_documents:
             print(f"Invalid date format in document {entry}. Submission date used instead: {error_documents[entry]}")
 
-    def date_rounder(self, submission_date):
-        ### Function that is only used in period fix in order to estimate submission date for any remaining documents
+
+    def date_rounder(self,submission_date):
+        # Function that is only used in period fix in order to estimate submission date for any remaining documents
         # submission date is in format yyyy-mm-dd hh:mm. change the format to yyyy-mm-dd
         submission_date = submission_date.split(' ')[0]
-        #round that date to the last quarter end
+        # Parse the date
         submission_date = datetime.strptime(submission_date, '%Y-%m-%d')
-        if submission_date.month < 4:
+        
+        # Round the date to the last quarter end
+        if submission_date.month <= 3:
+            submission_date = submission_date.replace(month=12, day=31, year=submission_date.year - 1)
+        elif submission_date.month <= 6:
             submission_date = submission_date.replace(month=3, day=31)
-        elif submission_date.month < 7:
+        elif submission_date.month <= 9:
             submission_date = submission_date.replace(month=6, day=30)
-        elif submission_date.month < 10:
-            submission_date = submission_date.replace(month=9, day=30)
         else:
-            submission_date = submission_date.replace(month=12, day=31)
+            submission_date = submission_date.replace(month=9, day=30)
+
         return submission_date
     def drop_external(self):
         self.sumdf = self.sumdf[self.sumdf['External'] == False]
@@ -519,14 +577,12 @@ class DataFrameBuilder:
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役員']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役等']
-    def build_output_df(self,date):
-        #check that temptdf is empty
-        if not self.tempdf.empty:
-            print('Error: tempdf is not empty')
-            return
+
         
 
     def verifier(self,text):
+        if re.search(r'::$', text):
+            return 3
 
         
         #screen for problems
@@ -556,15 +612,49 @@ class DataFrameBuilder:
                 print("Problem: 月 appears after ::", text)
                 return 2
         #if there is no content after :: 
-        if re.search(r':$', text):
-            return 3
+
         return 1
-    def to_csv_date(self, date, filepath='TO_DATE.csv'):
-        # date is in format yyyymmdd, turn it into yyyy-mm-dd
-        date = datetime.strptime(date, '%Y%m%d')
-        date = date.strftime('%Y-%m-%d')
+    def find_last_tse(self):
+        identifier = ci.CompanyIdentifier('variantnames.csv')
+        self.tempdf['Last Company Conf'] = ""
+        for index, row in tqdm(self.tempdf.iterrows(),total=self.tempdf.shape[0]):
+            last_company_name = row['Last Company Name']
+            if last_company_name == "CURR":
+                continue
+            if last_company_name == "ERROR":
+                continue
+            id, confidence = identifier.identify_company(last_company_name)
+
+            self.tempdf.loc[index, 'Last Company TSE'] = id
+            self.tempdf.loc[index, 'Last Company Conf'] = confidence
+        
+
+            #if their role column is empty, move that value to the Last Company Name column
+            # if row['role']!='':
+         #reorder columns so that work history is last)
+        self.tempdf = self.tempdf[['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title','Year Started At Last Company', 'Year Joined', 'Last Company Name', 'Last Company TSE', 'Last Company Conf', 'role','Work History']]
+            #     self.tempdf.loc[index, 'Last Company Name'] = self.tempdf.loc[index, 'role']
+        #drop role column
+    
+            
+
+    def create_output_df(self, date, filepath='TO_DATE.csv'):
+        #verify that self.tempdf is empty
+        if not self.tempdf.empty:
+            print('Error: tempdf is not empty')
+            return
+        
+        # date is in format yyyymm, turn it into yyyy/mm
+        date = date[:4] + '/' + date[4:]
+
         # create csv where the date of joining the company is after the date given
-        self.sumdf[self.sumdf['Year Joined'] > date].to_csv(filepath, index=False)
+        # only have columns TSE:,Company Name,Job Title,Name,DOB,Year Joined,Work History
+        df_filtered = self.sumdf[self.sumdf['Year Joined'] != 'ERROR']
+        df_filtered = df_filtered[df_filtered['Last Company Name'] != 'CURR']
+        self.tempdf = df_filtered[df_filtered['Year Joined'] > date][['TSE:', 'Company Name', 'Job Title', 'Name', 'DOB', 'Year Joined','Last Company Name', 'Last Company TSE', 'role','Work History', 'Year Started At Last Company']]
+    def output_df(self, filepath):
+        self.tempdf.to_csv(filepath, index=False)
+
 
 
 

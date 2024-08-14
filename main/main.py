@@ -145,6 +145,14 @@ def main():
     ### call this one the loop, this is the yearly loop
     
     dataframe_builder_instance = dataframe_builder.DataFrameBuilder()
+
+
+
+
+    ###this is the code for the downloading of the CSV's
+
+    #for failed parsing, consider downloading the information from the PDF's
+
     # files_sorted = sorted(os.listdir(dl_file_path))
     # for tseno in files_sorted:
     #     success = False
@@ -193,15 +201,21 @@ def main():
     dataframe_builder_instance.period_fix()
     
 
-    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
     
 
     
-    print("Downloaded and parsed all yearly reports.")
-    dataframe_builder_instance.work_history_process()
-    # dataframe_builder_instance.previous_jobs()
-    # dataframe_builder_instance.external_dates()
-    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+    # print("Downloaded and parsed all yearly reports.")
+    # dataframe_builder_instance.drop_auditors()
+    # dataframe_builder_instance.work_history_process()
+    # # dataframe_builder_instance.previous_jobs()
+    # # dataframe_builder_instance.external_dates()
+
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+    
+    # dataframe_builder_instance.create_output_df('202401')
+    # dataframe_builder_instance.find_last_tse()
+    # dataframe_builder_instance.output_df("TEST_CSV_UTIL_4.csv")
 
 
 
@@ -209,34 +223,34 @@ def main():
 
 
 
-    exit()
+    # exit()
 
 
     ###LOGIC BELOW IS FOR PROCESSING QUARTERLY REPORTS, CURRENTLY NON FUNCTIONAL, HANDLING DATES
+    print('test')
     files_sorted = sorted(os.listdir(dl_file_path))
+
     for tseno in files_sorted:
+        
         success = False
         
-        if tseno == '.DS_Store':
+        if tseno == '.DS_Store' or tseno == '.DS':
             continue
         TSE_path = os.path.join(dl_file_path, tseno)
         sorted_docIDS=sorted(os.listdir(TSE_path))
         #GET THE DATE OF THE TSE'S REPORT IN THE DATAFRAME BUILDERS DATAFRAME
         date = dataframe_builder_instance.get_latest_date(tseno)
+        
+        
+            
         if date == 'NA':
-            continue
-
-        doc_date = dataframe_builder_instance.get_latest_date(tseno)
-        try:
-            parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
-        except:
-            try:
-                parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
-            except:
-                # Handle incorrect date format if necessary
-                
-                parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
-
+            print(f"no date found for {tseno}")
+            continue   
+        
+        date = datetime.strptime(date, '%Y-%m-%d')
+        
+        
+        
         
         for docid in sorted_docIDS :
             if docid == ".DS" or docid == ".DS_Store":
@@ -245,7 +259,13 @@ def main():
             with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
                 data = json.load(file)
             document_title = data.get('docDescription')
-            doc_date = data.get('period end')
+            doc_date = data.get('PeriodEnd')
+            if "四半期報告書" not in document_title:
+                del data
+                continue
+            
+            
+            
             #check the format of docdate and convert to datetime
             try:
                 parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
@@ -254,24 +274,66 @@ def main():
                     parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
                 except:
                     # Handle incorrect date format if necessary
+                    try:
+                        if doc_date == None:
+
+                            doc_date = document_title[document_title.find("(")+1:document_title.find(")")]
+                            doc_date = doc_date.split('－')
+                            doc_date = doc_date[1]  
+                    except:
+                        parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+                        continue
+                    try:
+                        parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
+                    except:
+                        try:
+                            parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
+                        except:
+                            print(f"Date format error for {tseno} {docid}")
+                            parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+                            
+                            
+
                     
-                    parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+                    # 
+            if parsed_date == None:
+                print("oo")
+                exit()
+
+            
+            del data
             if parsed_date < date:
                 continue
-            del data
-            if "四半期報告書" not in document_title:
-                continue
+            
+            
 
-            # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+            # # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
             #if document does not exist download it
             check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
             if not os.path.exists(check_file):
                 rest_server_interface.download_report(docid,tseno,5)
-            success = dataframe_builder_instance.add_to_quarterly_dataframe(tseno,docid)
+            success = dataframe_builder_instance.check_qr(tseno,docid)
+            if success:
+                print(docid)
+                pdf_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.pdf'
+                if not os.path.exists(pdf_file):
+                    rest_server_interface.download_report(docid,tseno,2)
+                dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file)
+                
+
+                    #now you need to download the information from the tables in the pdf
+
+
+                #this is 
+                # os.remove(pdf_file)
+
+
             
-            #delete the dowloaded document in the files folder whos filepath is called filename
-            
-            # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+            # #delete the dowloaded document in the files folder whos filepath is called filename
+        
+        #     # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+    
+    dataframe_builder_instance.output_df("TEST_QUARTERLY_CSV_UTIL_1.csv")
         
 
 

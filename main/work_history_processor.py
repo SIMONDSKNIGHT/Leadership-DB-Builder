@@ -1,6 +1,7 @@
 from typing import Any
 import re
 import pandas as pd
+import company_identifier as ci
 class WorkHistoryProcessor:
     def __init__(self):
         self.text = ''
@@ -9,7 +10,10 @@ class WorkHistoryProcessor:
         self.text = text
         #remove full width characters
         self.replace_colons()
-        self.standardise_dates()    
+        self.standardise_dates() 
+        
+        self.split_text()
+        self.reorder_text()   
         #regex every YYYY年MM月 or YYYY年M月
 
     def split_text(self):
@@ -23,7 +27,7 @@ class WorkHistoryProcessor:
         text = re.sub(r'[０-９]', lambda x: chr(ord(x.group(0)) - 65248), self.text)
         # Replace Japanese numerals with Arabic numerals
         text = text.translate(str.maketrans('０１２３４５６７８９　', '0123456789 '))
-        text = text.translate(str.maketrans('〇一二三四五六七八九', '0123456789'))
+        # text = text.translate(str.maketrans('〇一二三四五六七八九', '0123456789'))　very commedically turned 九州 into 9州
 
         # Convert Japanese era years to Gregorian years
         era_dict = {
@@ -91,29 +95,121 @@ class WorkHistoryProcessor:
         print(self.text)
     
 
-        
-
-
     def get_text(self):
         return self.text
 
 
     
-    def when_joined(self):
+    def when_joined(self, company_name):
         #the goal of this one is to simply detect when they joined this company, what their last company was.
+        # company_name = '関西電力株式会社'
+        # identifier = ci.CompanyIdentifier(company_name)
+        # name = '関西電力株式会社社外取締役（現在）'
+        # print(identifier.calculate_closest_name(name))
+        # exit()
+
+        identifier = ci.CompanyIdentifier(company_name)
+ 
+
         for t in self.text:
             year =""
 
 
-            if '当社' in t:
+            if '当社' in t or '当行' in t or '提出会社' in t or '現職に'in t:
                 
                 year = t.split('::')[0]
             if year != "":
                 return year
-        
+            if len(t.split('::')) == 1:
+                print('broken text')
+                continue
+            this_name = t.split('::')[1]
+            if identifier.calculate_closest_name(this_name) < 0.3:
+                print(f'Company name: {this_name} is a match with {company_name}')
+                
+                year = t.split('::')[0]
+                return year
                 #set yearjoined as the year value
-        return 'fail'
+        return 'ERROR'
+    def reorder_text(self):
+        #reorder the text so that the most recent job is at the top. all items in text are in format yyyy/mm::text
+        
+        self.text = sorted(self.text, key=lambda x: x.split('::')[0])
+
+
+
+
+    def last_company(self, yyyy_mm):
+        #passed a date, get the name of the previous company they worked for and what they did there
+        #MAKE SURE TEXT IS SPLIT WHEN DOING THIS
+        identifier = ci.CompanyIdentifier()
+        
+        for i, t in enumerate(self.text):
+            if len(t.split('::')) == 1:
+                print('broken text')
+                continue
+            this_name = t.split('::')[1]
+            
+            year = t.split('::')[0]
+            last_company = ''
+            role = ''
+            start_year = ''
+            if year == yyyy_mm:
+                #get the text of the last poisition they held
+                if i == 0:
+
+                    return 'CURR', role
+                j=i-1
+                while j >= 0:
+                    if self.text[j] == '同社上席執行役員経理財務本部長（現任）':
+                        print('it got this far')
+
+                    if '同社' in self.text[j]:
+
+                        if role == '':
+                            role = self.text[j].split('::')[1]
+                        j -= 1
+                        #continue loop without leaving while
+                        continue
+                    try:
+                        if last_company == '':
+                            last_company = self.text[j].split('::')[1]
+                            identifier.read_csv(last_company)
+                            start_year = self.text[j].split('::')[0]
+                        else:
+                            if identifier.calculate_closest_name(self.text[j].split('::')[1]) < 0.3:
+                                
+                                start_year = self.text[j].split('::')[0]
+                            else:
+                                break
+                        
+                    except:
+                        print('error in last company; fetching previous...')
+                    j -= 1
+                    if j == 0:
+                        print('no previous company')
+                        return 'ERROR', role, start_year
+
+                print('last company:', last_company, 'role:', role, 'start year:', start_year)
+                return last_company, role, start_year
+        return 'ERROR', role, start_year
  ################## DEPRECATED ##################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def old_prev_job(self):
         self.sumdf['Last Internal Job'] = ""
         self.sumdf['Last External Job'] = ""
@@ -311,34 +407,10 @@ class WorkHistoryProcessor:
                     self.sumdf.loc[index, 'Year Joined'] = year_joined
                     self.sumdf.loc[index, 'Concurrent Roles'] = concurrent
                     self.sumdf.loc[index, 'Recent Job Change'] = last_job_change
+    
                 
                 
 
     
 
         
-
-if __name__ == '__main__':
-
-
-    wh = "2003年10月弁護士登録（第二東京弁護士会）2003年10月牛島総合法律事務所入所2004年９月シミック株式会社（現シミックホールディングス株式会社）入社2014年９月当社入社法務室　リーガル　カウンシル2019年３月法務室　マネージング・カウンシル2019年３月理事　法務室　マネージング・カウンシル2020年５月日本オラクルインフォメーションシステムズ合同会社　職務執行者（現任）2020年５月オラクル・グローバル・サービシーズ・ジャパン合同会社　職務執行者（現任）2020年10月代表執行役　法務室　マネージング・カウンシル（現任）2022年７月日本オラクルファイナンシング株式会社　取締役（現任）"
-    # df = pd.read_csv('test1.csv')
-    work_history = WorkHistoryProcessor()
-    work_history.process_work_history(wh)
-    work_history.split_text()
-    work_history.concurrent_roles()
-    work_history.join_text()
-    # for index, row in df.iterrows():
-    #     print(row['Work History'])
-    #     text = row ['Work History']
-    #     work_history.process_work_history(text)
-    #     work_history.split_text()
-    #     print("PROCESSING")
-    #     for i in work_history.get_text():
-    #         work_history.problem_identifier(i)
-    #         #if something was printed, print row
-    #     print(row['TSE:'], row['Name'])
-
-    #     e = input('Press q to quit')
-    #     if e == 'q':
-    #         break
