@@ -15,8 +15,10 @@ class QParser():
     def __init__(self, file_path, pdf = False):
         self.pdf = pdf 
         self.file_path = file_path
-        self.quarterdf = pd.DataFrame(columns=['TSE:','document code'])
-        self.returndf = pd.DataFrame()
+        self.quarterdf = pd.DataFrame(columns=['TSE:','document code','type'])
+        self.leavedf = pd.DataFrame(columns=['TSE:','document code'])
+        self.movedf = pd.DataFrame(columns=['TSE:','document code'])
+        self.joindf = pd.DataFrame(columns=['TSE:','document code'])
     def check_for_changes(self):
         try:
             zip_dir = os.path.dirname(self.file_path)
@@ -125,6 +127,7 @@ class QParser():
                         last_table = table
                         columns = self.make_unique(table[0])
                         #if there is a column with name 区分, then drop the table
+
                        
                         if '区分' in columns:
                             continue
@@ -141,14 +144,17 @@ class QParser():
                         if any ('所有者' in row for row in table[1] if row!=None):
                             continue
                         # Convert the first row of the table to column headers
+                        columns = self.column_fixing(columns)
+
+
                         
                         
                         if '略歴' in columns and None in columns:
                             
                             temp_table = self.align_and_merge_work_history(table)
-                            df = pd.DataFrame(temp_table[1:], columns=temp_table[0])
+                            df = pd.DataFrame(temp_table[1:], columns=columns)
                         else:
-                            df = pd.DataFrame(table[1:], columns=table[0])
+                            df = pd.DataFrame(table[1:], columns=columns)
                         
                         # Ensure all columns are present even if not all tables have them
                         if not hasattr(self, 'quarterdf'):
@@ -267,13 +273,43 @@ class QParser():
         if isinstance(cell, str):
             return len(cell.split("\n"))
         return 0
-    
+    def column_fixing(self,columns):
+        #fixes complicated name variants of columns
+        if '新役名及び職名' in columns:
+            columns[columns.index('新役名及び職名')] = '新役職名'
+        if '旧役名及び職名' in columns:
+            columns[columns.index('旧役名及び職名')] = '旧役職名'
+        return columns
     def extract_info(self):
         #gets the rows from quarterdf and turns them into information that can be used to make a new dataframe
-        pass
+        #types are join, move, leave
+        #if nothing in column 氏名, then drop the row
+        
+        for index, row in self.quarterdf.iterrows():
+            row_columns = row.index
+            
 
+            # try:
+            #     if row['氏名'] == None:
+            #         self.quarterdf.drop(index, inplace=True)
+            #         continue
+            # except:
+            #     print(row)
+            if '退任年月日'  in row_columns:
+                if not pd.isna(row['退任年月日']):
+                    
+                    self.quarterdf.at[index, 'type'] = 'L'
+                    continue
+            if '異動年月日' in row_columns:
+                if not pd.isna(row['異動年月日']):
+                    self.quarterdf.at[index, 'type'] = 'M'
+                    continue
+            self.quarterdf.at[index, 'type'] = 'J'
+        
 
     def get_df(self):
+        #remove columns '任務' if it exists
+        #remove any columns that are not TSE:	document code	type	新役職名	旧役職名	氏名	異動年月日	役職名	生年月日	略歴	任期	所有株式数 （株）	退任年月日	所有株式数 （千株）	就任 年月日	役名	職名
         return self.quarterdf
     def get_officerdf(self):
         return self.officerdf
@@ -285,6 +321,11 @@ class QParser():
     def is_kanji(self,char):
         """Check if a character is a Kanji."""
         return re.match(r'[\u4e00-\u9fff]', char) is not None
+    def output_subdfs(self):
+        
+        self.leavedf.to_csv('QDF_1.csv', index=False)
+        self.movedf.to_csv('QDF_2.csv', index=False)
+        self.joindf.to_csv('QDF_3.csv', index=False)
 
     def calculate_score(self,line):
         """Calculate the score for a line based on the given criteria."""

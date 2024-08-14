@@ -320,6 +320,7 @@ def main():
                     rest_server_interface.download_report(docid,tseno,2)
                 dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file)
                 
+                
 
                     #now you need to download the information from the tables in the pdf
 
@@ -332,6 +333,7 @@ def main():
             # #delete the dowloaded document in the files folder whos filepath is called filename
         
         #     # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+    dataframe
     
     dataframe_builder_instance.output_df("TEST_QUARTERLY_CSV_UTIL_1.csv")
         

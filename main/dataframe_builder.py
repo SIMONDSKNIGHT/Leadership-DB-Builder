@@ -211,8 +211,11 @@ class DataFrameBuilder:
         pdf_parser = QParser(pdf_address, pdf = True)
         pdf_parser.remove_pdf_restrictions()
         pdf_parser.extract_tables(tseno, docid)
+        pdf_parser.extract_info()
         df = pdf_parser.get_df()
         self.tempdf = pd.concat([self.tempdf, df], ignore_index=True)
+        #drop any tempdf rows that have type as nto 'L'
+        
         del pdf_parser
         
 
