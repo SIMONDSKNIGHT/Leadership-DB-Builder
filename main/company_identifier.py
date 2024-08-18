@@ -65,7 +65,6 @@ class CompanyIdentifier:
             text = self.isolate_company_name(text)
             text = self.drop_extraneous(text)
 
-            print(text, self.company_names)
             return self.normalised_distance(text, self.company_names)
         
         lev_dist = {}

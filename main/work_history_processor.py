@@ -190,7 +190,6 @@ class WorkHistoryProcessor:
                         print('no previous company')
                         return 'ERROR', role, start_year
 
-                print('last company:', last_company, 'role:', role, 'start year:', start_year)
                 return last_company, role, start_year
         return 'ERROR', role, start_year
  ################## DEPRECATED ##################

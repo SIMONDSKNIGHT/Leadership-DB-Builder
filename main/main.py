@@ -153,49 +153,49 @@ def main():
 
     #for failed parsing, consider downloading the information from the PDF's
 
-    # files_sorted = sorted(os.listdir(dl_file_path))
-    # for tseno in files_sorted:
-    #     success = False
+    files_sorted = sorted(os.listdir(dl_file_path))
+    for tseno in files_sorted:
+        success = False
         
-    #     if tseno == '.DS_Store':
-    #         continue
-    #     TSE_path = os.path.join(dl_file_path, tseno)
-    #     sorted_docIDS=sorted(os.listdir(TSE_path))
-    #     sorted_docIDS = reversed(sorted_docIDS)
+        if tseno == '.DS_Store':
+            continue
+        TSE_path = os.path.join(dl_file_path, tseno)
+        sorted_docIDS=sorted(os.listdir(TSE_path))
+        sorted_docIDS = reversed(sorted_docIDS)
         
-    #     for docid in sorted_docIDS :
-    #         if docid == ".DS" or docid == ".DS_Store":
-    #             continue
-    #         #open the info text file
-    #         with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
-    #             data = json.load(file)
-    #         document_title = data.get('docDescription')
+        for docid in sorted_docIDS :
+            if docid == ".DS" or docid == ".DS_Store":
+                continue
+            #open the info text file
+            with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
+                data = json.load(file)
+            document_title = data.get('docDescription')
         
-    #         del data
-    #         if "有価証券報告書" not in document_title:
-    #             continue
+            del data
+            if "有価証券報告書" not in document_title:
+                continue
 
-    #         # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
-    #         #if document does not exist download it
-    #         check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
-    #         if not os.path.exists(check_file):
-    #             rest_server_interface.download_report(docid,tseno,5)
-    #         success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
+            # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+            #if document does not exist download it
+            check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
+            if not os.path.exists(check_file):
+                rest_server_interface.download_report(docid,tseno,5)
+            success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
             
             
             
 
-    #         #delete the dowloaded document in the files folder whos filepath is called filename
+            #delete the dowloaded document in the files folder whos filepath is called filename
             
-    #         # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+            # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
 
 
-    #         if success:
-    #             print(f"document {docid} downloaded and added to df")
-    #             success = True
-    #             break
+            if success:
+                print(f"document {docid} downloaded and added to df")
+                success = True
+                break
         
-    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_1.csv")
+    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_1.csv")
     dataframe_builder_instance.read_csv1("TEST_CSV_UTIL_1.csv")
     dataframe_builder_instance.sort_officers()
     dataframe_builder_instance.period_fix()
@@ -205,17 +205,6 @@ def main():
     
 
     
-    # print("Downloaded and parsed all yearly reports.")
-    # dataframe_builder_instance.drop_auditors()
-    # dataframe_builder_instance.work_history_process()
-    # # dataframe_builder_instance.previous_jobs()
-    # # dataframe_builder_instance.external_dates()
-
-    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
-    
-    # dataframe_builder_instance.create_output_df('202401')
-    # dataframe_builder_instance.find_last_tse()
-    # dataframe_builder_instance.output_df("TEST_CSV_UTIL_4.csv")
 
 
 
@@ -227,7 +216,9 @@ def main():
 
 
     ###LOGIC BELOW IS FOR PROCESSING QUARTERLY REPORTS, CURRENTLY NON FUNCTIONAL, HANDLING DATES
-    print('test')
+
+
+
     files_sorted = sorted(os.listdir(dl_file_path))
 
     for tseno in files_sorted:
@@ -318,7 +309,8 @@ def main():
                 pdf_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.pdf'
                 if not os.path.exists(pdf_file):
                     rest_server_interface.download_report(docid,tseno,2)
-                dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file)
+                dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file,parsed_date)
+
                 
                 
 
@@ -333,9 +325,24 @@ def main():
             # #delete the dowloaded document in the files folder whos filepath is called filename
         
         #     # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
-    dataframe
-    
     dataframe_builder_instance.output_df("TEST_QUARTERLY_CSV_UTIL_1.csv")
+    dataframe_builder_instance.append_qr_info()
+
+
+    dataframe_builder_instance.to_csv("TEST_QUARTERLY_CSV_UTIL_2.csv")
+    print("Downloaded and parsed all yearly reports.")
+    dataframe_builder_instance.drop_auditors()
+    dataframe_builder_instance.work_history_process()
+    # dataframe_builder_instance.previous_jobs()
+    # dataframe_builder_instance.external_dates()
+
+    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+    
+    dataframe_builder_instance.create_output_df('202401')
+    dataframe_builder_instance.find_last_tse()
+    dataframe_builder_instance.output_df("TEST_CSV_UTIL_4.csv")
+
+   
         
 
 

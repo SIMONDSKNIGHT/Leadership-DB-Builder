@@ -11,11 +11,12 @@ import fitz
 import traceback
 import re
 
+
 class QParser():
     def __init__(self, file_path, pdf = False):
         self.pdf = pdf 
         self.file_path = file_path
-        self.quarterdf = pd.DataFrame(columns=['TSE:','document code','type'])
+        self.quarterdf = pd.DataFrame(columns=['TSE:','document code','type','Period End'])
         self.leavedf = pd.DataFrame(columns=['TSE:','document code'])
         self.movedf = pd.DataFrame(columns=['TSE:','document code'])
         self.joindf = pd.DataFrame(columns=['TSE:','document code'])
@@ -89,7 +90,7 @@ class QParser():
             print(f"Error removing PDF restrictions: {self.file_path} ", e)
             with open('failed.txt', 'a') as file:
                 file.write(f"Error removing PDF restrictions: {self.file_path} {e}")
-    def extract_tables(self,tseno, docid):
+    def extract_tables(self,tseno, docid,date):
         with fitz.open(self.file_path) as pdf:
             toc = pdf.get_toc(simple=False)
             target_chapter = None
@@ -159,10 +160,10 @@ class QParser():
                         # Ensure all columns are present even if not all tables have them
                         if not hasattr(self, 'quarterdf'):
                             self.quarterdf = pd.DataFrame(columns=df.columns)
-                        num = 1
-                        while  os.path.exists(f'TEST_{num}.csv')==True:
-                            num += 1
-                        df.to_csv(f'TEST_{num}.csv', index=False)
+                        # num = 1
+                        # while  os.path.exists(f'TEST_{num}.csv')==True:
+                            # num += 1
+                        # df.to_csv(f'TEST_{num}.csv', index=False)
 
                         # Merge the dataframes, adding columns as necessary
                         #if the df is not empty
@@ -170,6 +171,7 @@ class QParser():
                             #add the tse number and document code to the dataframe
                             df['TSE:'] = tseno
                             df['document code'] = docid
+                            df['Period End'] = date.strftime('%Y-%m-%d')
                         self.quarterdf = pd.concat([self.quarterdf, df], ignore_index=True)
         except Exception as e:
             print(f"Error extracting tables from PDF: {self.file_path} ", e)
@@ -300,11 +302,14 @@ class QParser():
                     
                     self.quarterdf.at[index, 'type'] = 'L'
                     continue
-            if '異動年月日' in row_columns:
-                if not pd.isna(row['異動年月日']):
+            if '旧役職名' in row_columns:
+                if not pd.isna(row['旧役職名']):
                     self.quarterdf.at[index, 'type'] = 'M'
                     continue
+            
             self.quarterdf.at[index, 'type'] = 'J'
+            
+                
         
 
     def get_df(self):

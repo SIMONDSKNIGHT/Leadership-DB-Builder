@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 import re
 import company_identifier as ci
 
-
+DOWNLOADS_FILE = "TDnet-Scraper/downloads"
 
 
 
@@ -31,6 +31,7 @@ class DataFrameBuilder:
         self.misformat = set()
         self.TEST_counter = 0
         self.tempdf = pd.DataFrame()
+        self.failed_qr = pd.DataFrame()
 
     
     def add_to_dataframe(self, tseno, docid, debug = False):
@@ -170,6 +171,7 @@ class DataFrameBuilder:
         document_title = data.get('docDescription')
         period_end = data.get('periodEnd')
         
+        
         if period_end == None:
             try:
                 period_end = document_title[document_title.find("(")+1:document_title.find(")")]
@@ -188,11 +190,13 @@ class DataFrameBuilder:
         quarterly_parser = QParser('files/'+tseno+'/'+docid+'/'+docid+'.zip')
 
         result = quarterly_parser.check_for_changes()
+        del quarterly_parser
         return result
             
         
         
-        
+    def tse_asstr(self):
+        self.sumdf['TSE:'] = self.sumdf['TSE:'].astype(str)
   
 
             
@@ -207,10 +211,10 @@ class DataFrameBuilder:
         # df['type'] = 'annual'  
 
 
-    def parse_qr_pdf(self, tseno, docid, pdf_address, debug = False):
+    def parse_qr_pdf(self, tseno, docid, pdf_address,date, debug = False):
         pdf_parser = QParser(pdf_address, pdf = True)
         pdf_parser.remove_pdf_restrictions()
-        pdf_parser.extract_tables(tseno, docid)
+        pdf_parser.extract_tables(tseno, docid,date)
         pdf_parser.extract_info()
         df = pdf_parser.get_df()
         self.tempdf = pd.concat([self.tempdf, df], ignore_index=True)
@@ -221,9 +225,233 @@ class DataFrameBuilder:
 
         #write pdf to csv
         #add to tempdf adding all new columns and having nothing in any nonshared columns
-        
+    def append_qr_info(self, debug=False):
+        # Sort tempdf by 'Period End'
+        self.tempdf = self.tempdf.sort_values(by='Period End')
 
-        
+        # Initialize 'Parsing Name' column in sumdf
+        self.sumdf['Parsing Name'] = ''
+        self.sumdf['TSE:'].astype(str)      
+        for index, row in self.tempdf.iterrows():
+            try:
+                # Check the 'type' value
+                tseno = row['TSE:']
+                #give me first tse number in sumdf
+
+                if tseno not in self.sumdf['TSE:'].values:
+                    
+                    tseno_str = str(tseno)
+
+                    # Convert the 'TSE:' column to strings for comparison
+                    self.sumdf['TSE:'] = self.sumdf['TSE:'].astype(str)
+
+                    # Check if tseno_str is in the converted column
+                    if tseno_str not in self.sumdf['TSE:'].values:
+                        print(f"Error: no matching TSE number found in sumdf for {tseno_str}")
+                        Exception(f"No matching TSE number found in sumdf for {tseno_str}")
+                        
+                ### L is for leavers, M is for movers, J is for joiners
+                if row['type'] == 'J':
+                    name = row['氏名']
+                    name_variants = []
+                    name_variants.append(name)
+                    name_variants.append(name.replace(' ', ''))
+                    name_variants.append(name.replace('　', ''))
+                    name_variants.append(name.replace('　', ' '))
+                    name_variants.append(name.replace(' ', '　'))
+                    #matchdf is df with name that matches one of the above
+                    # match_df = self.sumdf[self.sumdf['Name'].isin(name_variants)]
+                    # if not match_df.empty:  ### CURRENTLY UNUSED, CANNOT FIND EFFICIENT + UTILITY IN DOING THIS
+                    document_code = row['document code']
+                    period_end = row['Period End']
+                    job_name = row['役職名']
+                    work_history = row['略歴']
+                    birthdate = row['生年月日']
+                    
+                    company_name = self.sumdf.loc[self.sumdf['TSE:'] == tseno, 'Company Name'].iloc[0]
+                    
+
+                    #create row with this info and append it to sumdf
+                    new_row = {
+                        'TSE:': tseno,
+                        'Company Name': company_name,
+                        'Name': name,
+                        'DOB': birthdate,
+                        'Job Title': job_name,
+                        'document code': document_code,
+                        'Work History': work_history,
+                        'Period End': period_end
+                    }
+
+                    # Use pd.concat to add the new row
+                    new_row_df = pd.DataFrame([new_row])
+                    self.sumdf = pd.concat([self.sumdf, new_row_df], ignore_index=True)
+
+                    continue
+
+
+                    
+
+                
+                # Filter sumdf by matching 'TSE:'
+                df = self.sumdf[self.sumdf['TSE:'] == row['TSE:']].copy()
+
+                # Remove spaces (including full-width spaces) from 'Name' in sumdf and store in 'Parsing Name'
+                df['Parsing Name'] = df['Name'].str.replace(r'\s+', '', regex=True)
+
+                # Also, remove spaces from the name in the tempdf row for comparison
+                temp_name = row['氏名'].replace(' ', '').replace('　', '')  # Replaces both half-width and full-width spaces
+                
+                # Check if there is a match between 'Parsing Name' in sumdf and the processed name from tempdf
+                match_df = df[df['Parsing Name'] == temp_name]
+                if row['type'] == 'L':
+                    if match_df.empty:
+                        if debug:
+                            print(f'Error: no matching row found for {row["氏名"]} in company {row["TSE:"]}')
+                        #add row with this name and company to sumdf with blank elsewhere
+                        
+                        
+                        job = row['役職名']
+                        #if job is nan, throw error
+
+                        if pd.isna(job):
+                            #if row 役名 and 職名 are both present, combine them
+                            columns = row.keys()
+                            
+                            if '役名' in columns and '職名' in columns:
+                                job = row['役名'] +'/'+ row['職名']
+                            else:
+                                print('Error: no job title found for employee')
+                                Exception('No job title found for employee')
+                                
+                        work_history = job
+                        work_history = "0000/00  "+work_history
+                    else:
+                        if debug:
+                            print(f"Match found for {row['氏名']} in document {row['document code']}")
+                        # Get the index of the matching row in sumdf
+                        sumdf_index = match_df.index[0]
+
+                        # Update the corresponding columns in sumdf with the data from tempdf
+                        work_history = self.sumdf.loc[sumdf_index, 'Work History']
+                    date = row['退任年月日']
+                    date = date.translate(str.maketrans('０１２３４５６７８９　', '0123456789 '))
+                    #parse the date, which is in format yyyy年mm月dd日 and return as yyyy/mm
+                    date = date.split('年')
+                    month = date[1].split('月')[0]
+                    if len(month) == 1:
+                        month = '0' + month
+                    date = date[0] + '/' + month
+                    if work_history == '' or work_history == 'nan':
+                        Exception('No work history found for employee')
+                    work_history += f" {date}  同社退任"
+                    if not df.empty:
+                        self.sumdf.loc[sumdf_index, 'Work History'] = work_history
+                        self.sumdf.loc[sumdf_index, 'Year Joined'] = row['退任年月日']
+                        self.sumdf.loc[sumdf_index, 'Last Company Name'] = self.sumdf.loc[sumdf_index, 'Company Name']
+                        self.sumdf.loc[sumdf_index, 'Last Company ID'] = row['TSE:']
+                        self.sumdf.loc[sumdf_index, 'document code'] += f', {row["document code"]}'
+                        self.sumdf.loc[sumdf_index, 'Period End'] = row['Period End']
+                        self.sumdf.loc[sumdf_index, 'TSE:'] = "NA"
+                        self.sumdf.loc[sumdf_index, 'Company Name'] = "NA"
+                    else:
+                        new_row = {
+                            'TSE:': "NA",
+                            'Company Name': "NA",
+                            'Name': row['氏名'],
+                            'DOB': row['生年月日'],
+                            'Job Title': row['役職名'],
+                            'Work History': work_history,
+                            'Footnotes': '',
+                            'Company Footnotes': '',
+                            'Document Title': row['document code'],
+                            
+                            'Period End': row['Period End']
+                        }
+                        new_row_df = pd.DataFrame([new_row])
+                        self.sumdf = pd.concat([self.sumdf, new_row_df], ignore_index=True)
+                        
+                    if debug:
+                        print(f"Updated row in sumdf at index {sumdf_index} with data from tempdf row {index}")
+                    continue
+                if row['type'] == 'M':
+                    old_job = row['旧役職名']
+                    new_job = row['新役職名']
+                    move_date = row['異動年月日'].translate(str.maketrans('０１２３４５６７８９年年月日　', '0123456789     '))
+                    move_date = datetime.strptime(move_date.strip(), '%Y %m %d')
+                    move_date = move_date.strftime('%Y-%m')
+                    #ensure that the month has 2 digits
+                    if len(move_date) == 6:
+                        move_date = move_date[:5] + '0' + move_date[5]
+
+                    tseno
+                    document_code = row['document code']
+                    period_end = row['Period End']
+
+
+                    if match_df.empty:
+                        if debug:
+                            print(f'Error: no matching row found for {row["氏名"]} in company {row["TSE:"]} (non-fatal)')
+                        work_history = f"0000/00::{old_job}"
+                        work_history += f";{move_date}::{new_job}"
+                        new_row = {
+                            'TSE:': tseno,
+                            'Company Name': company_name,
+                            'Name': row['氏名'],
+                            'DOB': row['生年月日'],
+                            'Job Title': new_job,
+                            'Work History': work_history,
+                            'Footnotes': '',
+                            'Company Footnotes': '',
+                            'Document Title': document_code,
+                            
+                            'Period End': period_end
+                        }
+
+                    else:
+                        if debug:
+                            print(f"Match found for {row['氏名']} in document {row['document code']}")
+                        # Get the index of the matching row in sumdf
+                        sumdf_index = match_df.index[0]
+                        work_history = self.sumdf.loc[sumdf_index, 'Work History']
+                        work_history += f" {move_date}  {new_job}"
+
+                        self.sumdf.loc[sumdf_index, 'Work History'] = work_history
+                        self.sumdf.loc[sumdf_index, 'Period End'] = period_end
+                        self.sumdf.loc[sumdf_index, 'document code'] += f', {document_code}'
+                        
+                    
+                    if old_job not in work_history and debug:
+                        print(f'parsing error in {row["氏名"]} in company {row["TSE:"]}:: {old_job} not found in work history explicitly (non-fatal)')
+
+                    continue
+                    
+
+
+                        #add row with this name and company to sumdf with blank elsewhere
+                        
+                        #if job is nan, throw error
+
+
+
+                else:
+                    print(row['type'])
+                    print(f"Error: invalid 'type' value for {row['氏名']} in company {row['TSE:']}")
+                    self.failed_qr = pd.concat([self.failed_qr, row], ignore_index=True)
+            except Exception as e:
+                print(f"Error on individual{row['氏名']} in company {row['TSE:']}")
+                print(e)
+                #print the location in the code that caused the error
+                print(sys.exc_info()[-1].tb_lineno)
+
+
+
+
+                #add row to failed_qr
+                self.failed_qr = pd.concat([self.failed_qr, row], ignore_index=True)
+            
+        self.sumdf.drop(columns=['Parsing Name'], inplace=True)
+        self.tempdf = pd.DataFrame()
 
 
     def clear_tempdf(self):
@@ -299,6 +527,10 @@ class DataFrameBuilder:
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役員']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役等']
     def to_csv(self, filepath=''):
+        if not self.failed.empty:
+            self.sumdf.to_csv("debug.csv", index=False)
+        if not self.failed_qr.empty:
+            self.failed_qr.to_csv("debug_qr.csv", index=False)
         self.sumdf.to_csv(filepath, index=False)
     def to_csv_failures(self, filepath=''):
         print(self.failed)
@@ -462,7 +694,7 @@ class DataFrameBuilder:
                     else:
                         print('Job Title is NaN or empty')
         print(f'{counter} rows merged')
-    
+
     def work_history_process(self):
         #iterates through all rows, processes the words
         issues = 0
@@ -657,6 +889,11 @@ class DataFrameBuilder:
         self.tempdf = df_filtered[df_filtered['Year Joined'] > date][['TSE:', 'Company Name', 'Job Title', 'Name', 'DOB', 'Year Joined','Last Company Name', 'Last Company TSE', 'role','Work History', 'Year Started At Last Company']]
     def output_df(self, filepath):
         self.tempdf.to_csv(filepath, index=False)
+
+#//////// Code to do with the parsing of information from the TDNet information
+    def parse_tdnet
+
+
 
 
 
