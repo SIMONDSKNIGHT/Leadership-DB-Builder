@@ -110,7 +110,7 @@ class WorkHistoryProcessor:
 
         identifier = ci.CompanyIdentifier(company_name)
  
-
+        
         for t in self.text:
             year =""
 
@@ -125,7 +125,7 @@ class WorkHistoryProcessor:
                 continue
             this_name = t.split('::')[1]
             if identifier.calculate_closest_name(this_name) < 0.3:
-                print(f'Company name: {this_name} is a match with {company_name}')
+                # print(f'Company name: {this_name} is a match with {company_name}')
                 
                 year = t.split('::')[0]
                 return year
@@ -145,27 +145,31 @@ class WorkHistoryProcessor:
         identifier = ci.CompanyIdentifier()
         
         for i, t in enumerate(self.text):
+            
             if len(t.split('::')) == 1:
                 print('broken text')
                 continue
             this_name = t.split('::')[1]
-            
+            lc_val = None
             year = t.split('::')[0]
             last_company = ''
             role = ''
             start_year = ''
+            if '同社退任' in self.text[-1]:
+                last_company = self.text[-2].split('::')[1]
+                return 'NA', 'NA', self.text[-1].split('::')[0]
+
             if year == yyyy_mm:
                 #get the text of the last poisition they held
                 if i == 0:
-
-                    return 'CURR', role
+                    
+                    return 'CURR', role, start_year
                 j=i-1
                 while j >= 0:
-                    if self.text[j] == '同社上席執行役員経理財務本部長（現任）':
-                        print('it got this far')
+                   
 
                     if '同社' in self.text[j]:
-
+                        
                         if role == '':
                             role = self.text[j].split('::')[1]
                         j -= 1
@@ -174,20 +178,29 @@ class WorkHistoryProcessor:
                     try:
                         if last_company == '':
                             last_company = self.text[j].split('::')[1]
-                            identifier.read_csv(last_company)
+                            # print(last_company)
+                            
+                            identifier.set_company_names(last_company)
                             start_year = self.text[j].split('::')[0]
+                            j -= 1
+                            continue
                         else:
-                            if identifier.calculate_closest_name(self.text[j].split('::')[1]) < 0.3:
+                            if identifier.calculate_closest_name(self.text[j].split('::')[1]) > 0.3:
                                 
                                 start_year = self.text[j].split('::')[0]
-                            else:
-                                break
+                                return last_company, role, start_year
+                            
+                                
+                            
+                                
                         
                     except:
                         print('error in last company; fetching previous...')
                     j -= 1
                     if j == 0:
                         print('no previous company')
+
+
                         return 'ERROR', role, start_year
 
                 return last_company, role, start_year

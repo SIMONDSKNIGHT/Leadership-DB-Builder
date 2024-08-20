@@ -6,7 +6,8 @@ class CompanyIdentifier:
     def __init__(self, input=''):
         self.mode = 'normal'
         self.company_names = self.read_csv(input)
-        
+    def set_company_names(self, company_names):
+        self.company_names = company_names
 
     def read_csv(self, csv_file):
         if not csv_file.endswith('.csv'):

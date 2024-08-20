@@ -11,6 +11,8 @@ import dataframe_builder
 import pandas as pd
 import csv_querier
 import time
+import subprocess
+
 dl_file_path = 'files'
 
 # format for the commandline command is python main.py --forceupdate --default --test
@@ -149,59 +151,59 @@ def main():
 
 
 
-    ###this is the code for the downloading of the CSV's
+    # ###this is the code for the downloading of the CSV's
 
-    #for failed parsing, consider downloading the information from the PDF's
+    # #for failed parsing, consider downloading the information from the PDF's
 
-    files_sorted = sorted(os.listdir(dl_file_path))
-    for tseno in files_sorted:
-        success = False
+    # files_sorted = sorted(os.listdir(dl_file_path))
+    # for tseno in files_sorted:
+    #     success = False
         
-        if tseno == '.DS_Store':
-            continue
-        TSE_path = os.path.join(dl_file_path, tseno)
-        sorted_docIDS=sorted(os.listdir(TSE_path))
-        sorted_docIDS = reversed(sorted_docIDS)
+    #     if tseno == '.DS_Store':
+    #         continue
+    #     TSE_path = os.path.join(dl_file_path, tseno)
+    #     sorted_docIDS=sorted(os.listdir(TSE_path))
+    #     sorted_docIDS = reversed(sorted_docIDS)
         
-        for docid in sorted_docIDS :
-            if docid == ".DS" or docid == ".DS_Store":
-                continue
-            #open the info text file
-            with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
-                data = json.load(file)
-            document_title = data.get('docDescription')
+    #     for docid in sorted_docIDS :
+    #         if docid == ".DS" or docid == ".DS_Store":
+    #             continue
+    #         #open the info text file
+    #         with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
+    #             data = json.load(file)
+    #         document_title = data.get('docDescription')
         
-            del data
-            if "有価証券報告書" not in document_title:
-                continue
+    #         del data
+    #         if "有価証券報告書" not in document_title:
+    #             continue
 
-            # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
-            #if document does not exist download it
-            check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
-            if not os.path.exists(check_file):
-                rest_server_interface.download_report(docid,tseno,5)
-            success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
+    #         # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+    #         #if document does not exist download it
+    #         check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
+    #         if not os.path.exists(check_file):
+    #             rest_server_interface.download_report(docid,tseno,5)
+    #         success = dataframe_builder_instance.add_to_dataframe(tseno,docid)
             
             
             
 
-            #delete the dowloaded document in the files folder whos filepath is called filename
+    #         #delete the dowloaded document in the files folder whos filepath is called filename
             
-            # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+    #         # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
 
 
-            if success:
-                print(f"document {docid} downloaded and added to df")
-                success = True
-                break
+    #         if success:
+    #             print(f"document {docid} downloaded and added to df")
+    #             success = True
+    #             break
         
-    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_1.csv")
-    dataframe_builder_instance.read_csv1("TEST_CSV_UTIL_1.csv")
-    dataframe_builder_instance.sort_officers()
-    dataframe_builder_instance.period_fix()
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_1.csv")
+    # dataframe_builder_instance.read_csv1("TEST_CSV_UTIL_1.csv")
+    # dataframe_builder_instance.sort_officers()
+    # dataframe_builder_instance.period_fix()
     
 
-    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
+    # # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_2.csv")
     
 
     
@@ -212,141 +214,161 @@ def main():
 
 
 
-    # exit()
+    # # exit()
 
 
-    ###LOGIC BELOW IS FOR PROCESSING QUARTERLY REPORTS, CURRENTLY NON FUNCTIONAL, HANDLING DATES
+    # ###LOGIC BELOW IS FOR PROCESSING QUARTERLY REPORTS, CURRENTLY NON FUNCTIONAL, HANDLING DATES
 
 
 
-    files_sorted = sorted(os.listdir(dl_file_path))
+    # files_sorted = sorted(os.listdir(dl_file_path))
 
-    for tseno in files_sorted:
+    # for tseno in files_sorted:
         
-        success = False
+    #     success = False
         
-        if tseno == '.DS_Store' or tseno == '.DS':
-            continue
-        TSE_path = os.path.join(dl_file_path, tseno)
-        sorted_docIDS=sorted(os.listdir(TSE_path))
-        #GET THE DATE OF THE TSE'S REPORT IN THE DATAFRAME BUILDERS DATAFRAME
-        date = dataframe_builder_instance.get_latest_date(tseno)
+    #     if tseno == '.DS_Store' or tseno == '.DS':
+    #         continue
+    #     TSE_path = os.path.join(dl_file_path, tseno)
+    #     sorted_docIDS=sorted(os.listdir(TSE_path))
+    #     #GET THE DATE OF THE TSE'S REPORT IN THE DATAFRAME BUILDERS DATAFRAME
+    #     date = dataframe_builder_instance.get_latest_date(tseno)
         
         
             
-        if date == 'NA':
-            print(f"no date found for {tseno}")
-            continue   
+    #     if date == 'NA':
+    #         print(f"no date found for {tseno}")
+    #         continue   
         
-        date = datetime.strptime(date, '%Y-%m-%d')
-        
-        
+    #     date = datetime.strptime(date, '%Y-%m-%d')
         
         
-        for docid in sorted_docIDS :
-            if docid == ".DS" or docid == ".DS_Store":
-                continue
-            #open the info text file
-            with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
-                data = json.load(file)
-            document_title = data.get('docDescription')
-            doc_date = data.get('PeriodEnd')
-            if "四半期報告書" not in document_title:
-                del data
-                continue
+        
+        
+    #     for docid in sorted_docIDS :
+    #         if docid == ".DS" or docid == ".DS_Store":
+    #             continue
+    #         #open the info text file
+    #         with open(dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.json', 'r') as file:
+    #             data = json.load(file)
+    #         document_title = data.get('docDescription')
+    #         doc_date = data.get('PeriodEnd')
+    #         if "四半期報告書" not in document_title:
+    #             del data
+    #             continue
             
             
             
-            #check the format of docdate and convert to datetime
-            try:
-                parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
-            except:
-                try:
-                    parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
-                except:
-                    # Handle incorrect date format if necessary
-                    try:
-                        if doc_date == None:
+    #         #check the format of docdate and convert to datetime
+    #         try:
+    #             parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
+    #         except:
+    #             try:
+    #                 parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
+    #             except:
+    #                 # Handle incorrect date format if necessary
+    #                 try:
+    #                     if doc_date == None:
 
-                            doc_date = document_title[document_title.find("(")+1:document_title.find(")")]
-                            doc_date = doc_date.split('－')
-                            doc_date = doc_date[1]  
-                    except:
-                        parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
-                        continue
-                    try:
-                        parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
-                    except:
-                        try:
-                            parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
-                        except:
-                            print(f"Date format error for {tseno} {docid}")
-                            parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+    #                         doc_date = document_title[document_title.find("(")+1:document_title.find(")")]
+    #                         doc_date = doc_date.split('－')
+    #                         doc_date = doc_date[1]  
+    #                 except:
+    #                     parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
+    #                     continue
+    #                 try:
+    #                     parsed_date = datetime.strptime(doc_date, '%Y-%m-%d')
+    #                 except:
+    #                     try:
+    #                         parsed_date = datetime.strptime(doc_date, '%Y/%m/%d')
+    #                     except:
+    #                         print(f"Date format error for {tseno} {docid}")
+    #                         parsed_date = dataframe_builder_instance.date_rounder(data['submitDateTime'])
                             
                             
 
                     
-                    # 
-            if parsed_date == None:
-                print("oo")
-                exit()
+    #                 # 
+    #         if parsed_date == None:
+    #             print("oo")
+    #             exit()
 
             
-            del data
-            if parsed_date < date:
-                continue
+    #         del data
+    #         if parsed_date < date:
+    #             continue
             
             
 
-            # # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
-            #if document does not exist download it
-            check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
-            if not os.path.exists(check_file):
-                rest_server_interface.download_report(docid,tseno,5)
-            success = dataframe_builder_instance.check_qr(tseno,docid)
-            if success:
-                print(docid)
-                pdf_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.pdf'
-                if not os.path.exists(pdf_file):
-                    rest_server_interface.download_report(docid,tseno,2)
-                dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file,parsed_date)
+    #         # # filename = rest_server_interface.download_report(docid,tseno,5) # UNCOMMENT THIS FOR ACTUAL OPERATION
+    #         #if document does not exist download it
+    #         check_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.zip'
+    #         if not os.path.exists(check_file):
+    #             rest_server_interface.download_report(docid,tseno,5)
+    #         success = dataframe_builder_instance.check_qr(tseno,docid)
+    #         if success:
+    #             print(docid)
+    #             pdf_file = dl_file_path+'/'+tseno+'/'+docid+'/'+docid+'.pdf'
+    #             if not os.path.exists(pdf_file):
+    #                 rest_server_interface.download_report(docid,tseno,2)
+    #             dataframe_builder_instance.parse_qr_pdf(tseno,docid,pdf_file,parsed_date)
 
                 
                 
 
-                    #now you need to download the information from the tables in the pdf
+    #                 #now you need to download the information from the tables in the pdf
 
 
-                #this is 
-                # os.remove(pdf_file)
+    #             #this is 
+    #             # os.remove(pdf_file)
 
 
             
-            # #delete the dowloaded document in the files folder whos filepath is called filename
+    #         # #delete the dowloaded document in the files folder whos filepath is called filename
         
-        #     # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
-    dataframe_builder_instance.output_df("TEST_QUARTERLY_CSV_UTIL_1.csv")
-    dataframe_builder_instance.append_qr_info()
-
-
-    dataframe_builder_instance.to_csv("TEST_QUARTERLY_CSV_UTIL_2.csv")
-    print("Downloaded and parsed all yearly reports.")
-    dataframe_builder_instance.drop_auditors()
-    dataframe_builder_instance.work_history_process()
-    # dataframe_builder_instance.previous_jobs()
-    # dataframe_builder_instance.external_dates()
-
-    dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+    #     #     # os.remove(filename)  UNCOMMENT THIS FOR ACTUAL OPERATION
+    # dataframe_builder_instance.output_df("TEST_QUARTERLY_CSV_UTIL_1.csv")
     
-    dataframe_builder_instance.create_output_df('202401')
-    dataframe_builder_instance.find_last_tse()
-    dataframe_builder_instance.output_df("TEST_CSV_UTIL_4.csv")
+    # dataframe_builder_instance.append_qr_info()   #add the quarterly reports to the dataframe
 
+
+    # dataframe_builder_instance.to_csv("TEST_QUARTERLY_CSV_UTIL_2.csv")
+    # print("Downloaded and parsed all yearly reports.")
+    # dataframe_builder_instance.drop_auditors() #drops any auditors from the dataframe
+    # dataframe_builder_instance.work_history_process() #processes the work history by
+    # dataframe_builder_instance.tag_external_directors()
+    # dataframe_builder_instance.external_dates()
+    
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_3.csv")
+    # dataframe_builder_instance.date_fixer('Year Joined')
+    # dataframe_builder_instance.to_csv("TEST_CSV_UTIL_4.csv")
+    
+    # dataframe_builder_instance.create_output_df('202401')
+    # dataframe_builder_instance.output_df("TEST_CSV_UTIL_5.csv")
+    # dataframe_builder_instance.find_last_tse()
+    # dataframe_builder_instance.output_df("TEST_CSV_UTIL_6.csv")
+    # #edate is todays date in the format YYYYMMDD WITH 0s
+    edate = datetime.now().strftime("%Y%m%d")
+    sdate = datetime.now() - relativedelta(months=1)
+    sdate = sdate.strftime("%Y%m%d")
+    qry = '異動'
+    run_tdnet_scraper(sdate, edate, qry)
+
+
+
+    dataframe_builder_instance.parse_tdnet_pdfs(edate, qry)
    
         
 
 
     
+
+def run_tdnet_scraper(start_date, end_date, query):
+    print('running tdnet scraper...')
+    tdnet_main_path = 'TDnet-Scraper/main.py'
+    
+    subprocess.run(['python3','-u', tdnet_main_path,  start_date, end_date, query])
+
 
     
 def test_logic(ids):
@@ -378,7 +400,7 @@ def test_logic(ids):
     # dataframe_builder_instance.to_csv("test2.csv")
     dataframe_builder_instance.work_history_processer()
     dataframe_builder_instance.previous_jobs()
-    dataframe_builder_instance.external_dates()
+    # dataframe_builder_instance.external_dates() #Honestly you could not tell me about what this does
     df = dataframe_builder_instance.get_sumdf()
     # # TSE:,Company Name,Name,DOB,Job Title,Work History,External,Document Title,Submission Date,Period End,type,error,Footnotes,Company Footnotes,document code,Last Internal Job,Last External Job,Year Joined,Concurrent Roles,year joined,WH Error
 

@@ -13,6 +13,8 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import re
 import company_identifier as ci
+from td_pdf_parser import PDFParser
+
 
 DOWNLOADS_FILE = "TDnet-Scraper/downloads"
 
@@ -86,7 +88,7 @@ class DataFrameBuilder:
 
             
         
-        df['TSE:'] = tseno
+        df['TSE:'] = str(tseno)
         df['Submission Date'] = submission_date
         df['Company Name'] = company_name
         df['Document Title'] = document_title
@@ -349,7 +351,7 @@ class DataFrameBuilder:
                         self.sumdf.loc[sumdf_index, 'Work History'] = work_history
                         self.sumdf.loc[sumdf_index, 'Year Joined'] = row['退任年月日']
                         self.sumdf.loc[sumdf_index, 'Last Company Name'] = self.sumdf.loc[sumdf_index, 'Company Name']
-                        self.sumdf.loc[sumdf_index, 'Last Company ID'] = row['TSE:']
+                        self.sumdf.loc[sumdf_index, 'Last Company TSE'] = row['TSE:']
                         self.sumdf.loc[sumdf_index, 'document code'] += f', {row["document code"]}'
                         self.sumdf.loc[sumdf_index, 'Period End'] = row['Period End']
                         self.sumdf.loc[sumdf_index, 'TSE:'] = "NA"
@@ -394,6 +396,7 @@ class DataFrameBuilder:
                             print(f'Error: no matching row found for {row["氏名"]} in company {row["TSE:"]} (non-fatal)')
                         work_history = f"0000/00::{old_job}"
                         work_history += f";{move_date}::{new_job}"
+                        company_name = self.sumdf.loc[self.sumdf['TSE:'] == tseno, 'Company Name'].iloc[0]
                         new_row = {
                             'TSE:': tseno,
                             'Company Name': company_name,
@@ -467,8 +470,29 @@ class DataFrameBuilder:
         #reorganise the columns
         columns.insert(0,column_name)
             #reorganise the dataframe
-
-
+    def date_fixer(self, column_name, format = 'yyyy/mm'):
+        if format == 'yyyy/mm':
+            # Iterate over each row in the DataFrame
+            for index, row in self.sumdf.iterrows():
+                date = row[column_name]
+                if pd.isna(date):
+                    continue
+                
+                # Match the correct yyyy/mm format anywhere in the string
+                match = re.search(r'\d{4}/\d{2}', date)
+                if match:
+                    # Extract the correct date part
+                    correct_date = match.group(0)
+                    # Update the DataFrame with the corrected date
+                    self.sumdf.at[index, column_name] = correct_date
+                else:
+                    # Log the error if the date does not contain the expected format
+                    print(f"Error: date '{date}' in column '{column_name}' could not be fixed")
+                    # Add error message to the 'error' column, assuming 'error' column exists
+                    if 'error' not in self.sumdf.columns:
+                        self.sumdf['error'] = ''
+                    # self.sumdf.at[index, 'error'] += f"Error: date '{date}' in column '{column_name}' could not be fixed, "
+        
     def tag_external_directors(self):
         #go through the CSV and for each row, check the value of the column company footnotes for the substring '社外取締役' and return the TSE value for those that do not
         #add a boolean column to the table called 'external?' set to false
@@ -505,10 +529,7 @@ class DataFrameBuilder:
 
         with open ('external_directors.txt', 'w') as file:
             file.write(this_output)
-        self.sumdf= self.sumdf[['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title', 'Work History','External',
-       'Document Title', 'Submission Date', 'Period End', 'type', 'error',
-        'Footnotes', 'Company Footnotes',
-       'document code']]
+        
     def scan_for_external_directors(self):
         director_dict = {}
         for index, row in self.sumdf.iterrows():
@@ -700,9 +721,16 @@ class DataFrameBuilder:
         issues = 0
         self.sumdf['WH Error'] = 0
         self.sumdf['Year Joined'] = ""
-        self.sumdf['Last Company Name'] = ""
+        if 'Last Company Name' not in self.sumdf.columns:
+            self.sumdf['Last Company Name'] = ""
+        else:   
+            self.sumdf['Last Company Name'] = self.sumdf['Last Company Name'].fillna("")
+        if 'Last Company TSE' not in self.sumdf.columns:
+            self.sumdf['Last Company TSE'] = ""
+        else:
+            self.sumdf['Last Company TSE'] = self.sumdf['Last Company TSE'].fillna("")
         self.sumdf['role']  = ""
-        self.sumdf['Last Company TSE'] = ""
+        
         self.sumdf['Year Started At Last Company'] = ""
         processor = WorkHistoryProcessor()
         
@@ -733,8 +761,9 @@ class DataFrameBuilder:
                         last_company_name, role,last_company_year = processor.last_company(join_date)
                         if last_company_name == "CURR":
                             last_company_tse= row['TSE:']
-                    except:
+                    except Exception as e:
                         print(f'Error: no last company found for employee {row["Name"]}, employer {row["Company Name"]}')
+                        print(e)
 
 
                 
@@ -744,12 +773,20 @@ class DataFrameBuilder:
                     
                     issues+=1
             processor.join_text()
-
+            if row['TSE:'] == 'NA':
+                print(row['Year Joined'])
+                
+                join_date = row['Work History'].split(';')[-1].split('::')[0]
+            match = re.match(r'^(\d{4}/\d{2})', join_date)
+            if match and len(join_date)!=7:
+                # Extract the correct date part
+                print(f"Error: date '{join_date}' for {row['Name']} in company {row['Company Name']} could not be fixed")
             self.sumdf.loc[index, 'WH Error'] = problem
             self.sumdf.loc[index, 'Work History'] = processor.get_text()
             self.sumdf.loc[index, 'Year Joined'] = join_date
-            self.sumdf.loc[index, 'Last Company Name'] = last_company_name
-            self.sumdf.loc[index, 'Last Company TSE'] = last_company_tse
+            if self.sumdf.loc[index, 'Last Company Name'] == '':
+                self.sumdf.loc[index, 'Last Company Name'] = last_company_name
+                self.sumdf.loc[index, 'Last Company TSE'] = last_company_tse
             self.sumdf.loc[index, 'Year Started At Last Company'] = last_company_year
             self.sumdf.loc[index, 'role'] = role
         print(issues)
@@ -884,18 +921,40 @@ class DataFrameBuilder:
 
         # create csv where the date of joining the company is after the date given
         # only have columns TSE:,Company Name,Job Title,Name,DOB,Year Joined,Work History
+        #print length of the sumdf
+        print(len(self.sumdf))
         df_filtered = self.sumdf[self.sumdf['Year Joined'] != 'ERROR']
+        print(len(df_filtered))
         df_filtered = df_filtered[df_filtered['Last Company Name'] != 'CURR']
+        print(len(df_filtered))
         self.tempdf = df_filtered[df_filtered['Year Joined'] > date][['TSE:', 'Company Name', 'Job Title', 'Name', 'DOB', 'Year Joined','Last Company Name', 'Last Company TSE', 'role','Work History', 'Year Started At Last Company']]
+        print(len(self.tempdf))
+        
     def output_df(self, filepath):
         self.tempdf.to_csv(filepath, index=False)
 
 #//////// Code to do with the parsing of information from the TDNet information
-    def parse_tdnet
 
+    def parse_tdnet_pdfs(self, edate, query):
+        filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/TDnet-Scraper/downloads'
+        check = edate+"-"+query
+        pdfParser = PDFParser()
+        for filename in os.listdir(filepath):
+            
+            if check in filename:
+                new_path = filepath + '/' + filename
+                for filename1 in os.listdir(new_path):
+                    
+                    #name of file without .pdf
 
+                    this_file_id = filename1[:-4]
+                    metadata= pdfParser.check_pdf_metadata(new_path+'/'+filename1)
+                    print(metadata)
+                    # q=input()
+                    # if q == 'q':
+                    #     exit()
 
-
+                    
 
 
 
