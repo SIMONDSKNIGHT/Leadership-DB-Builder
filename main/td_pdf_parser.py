@@ -10,7 +10,7 @@ class PDFParser:
     
 
     def check_pdf_metadata(self, filepath):
-        metadata_filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/TDnet-Scraper/downloads/metadata.json'
+        metadata_filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/Scraper/downloads/metadata.json'
         with open(metadata_filepath, 'r') as file:
             metadata = json.load(file)
         #check if the json file contains the file id

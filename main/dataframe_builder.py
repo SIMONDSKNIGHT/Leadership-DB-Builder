@@ -16,7 +16,7 @@ import company_identifier as ci
 from td_pdf_parser import PDFParser
 
 
-DOWNLOADS_FILE = "TDnet-Scraper/downloads"
+DOWNLOADS_FILE = "Scraper/downloads"
 
 
 
@@ -936,7 +936,7 @@ class DataFrameBuilder:
 #//////// Code to do with the parsing of information from the TDNet information
 
     def parse_tdnet_pdfs(self, edate, query):
-        filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/TDnet-Scraper/downloads'
+        filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/Scraper/downloads'
         check = edate+"-"+query
         pdfParser = PDFParser()
         for filename in os.listdir(filepath):

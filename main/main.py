@@ -365,7 +365,7 @@ def main():
 
 def run_tdnet_scraper(start_date, end_date, query):
     print('running tdnet scraper...')
-    tdnet_main_path = 'TDnet-Scraper/main.py'
+    tdnet_main_path = 'Scraper/main.py'
     
     subprocess.run(['python3','-u', tdnet_main_path,  start_date, end_date, query])
 
