@@ -1,9 +1,11 @@
 from .base_scraper import BaseScraper
+employment_keywords = ['役員', '取締', '執行役','人事異動']
 
 class DocumentFinder(BaseScraper):
-    def __init__(self, base_url, headers, search_criteria):
+    def __init__(self, base_url, headers, search_criteria, tse_list):
         super().__init__(base_url, headers)
         self.search_criteria = search_criteria
+        self.tse_list = tse_list
 
     def find_documents(self):
         """Finds and returns a list of document links and their metadata."""
@@ -18,11 +20,15 @@ class DocumentFinder(BaseScraper):
                     if a_tag and a_tag['href'].endswith('.pdf'):
                         document_metadata = {
                             "company_name": row.find('td', class_='companyname').text.strip(),
-                            "company_code": row.find('td', class_='code').text.strip(),
+                            "company_code": row.find('td', class_='code').text.strip()[:4],
                             "file_timestamp": row.find('td', class_='time').text.strip(),
                             "document_name": a_tag.text.strip()
                         }
-                        document_info.append((a_tag['href'], document_metadata))
+                        
+                        if document_metadata["company_code"] in self.tse_list and  any(keyword in document_metadata["document_name"] for keyword in employment_keywords):
+                            document_info.append((a_tag['href'], document_metadata))
+                        else:
+                            print(f"Company code {document_metadata['company_code']} not in TSE list.")
             return document_info
         return []
 

@@ -936,9 +936,11 @@ class DataFrameBuilder:
 #//////// Code to do with the parsing of information from the TDNet information
 
     def parse_tdnet_pdfs(self, edate, query):
+        failed_documents={}
         filepath = '/Users/dagafed/Documents/GitHub/Leadership-DB-Builder/Scraper/downloads'
         check = edate+"-"+query
         pdfParser = PDFParser()
+        new_metadata = []   
         for filename in os.listdir(filepath):
             
             if check in filename:
@@ -948,11 +950,48 @@ class DataFrameBuilder:
                     #name of file without .pdf
 
                     this_file_id = filename1[:-4]
-                    metadata= pdfParser.check_pdf_metadata(new_path+'/'+filename1)
-                    print(metadata)
+                    metadata, success= pdfParser.check_pdf_metadata(new_path+'/'+filename1)
+                    
+                    if not success:
+                        failed_documents[this_file_id] = metadata
+                        continue
+                    else:
+                        new_metadata += [metadata]
+
+
                     # q=input()
                     # if q == 'q':
                     #     exit()
+        try:
+            with open(os.path.join(filepath, "metadata.json"), 'r') as file:
+                old_metadata = json.load(file)
+                if not isinstance(old_metadata, list):
+                    raise ValueError("Expected a list in metadata.json")
+        except FileNotFoundError:
+            old_metadata = []  # Start with an empty list if the file doesn't exist
+        except json.JSONDecodeError:
+            print("Error decoding JSON from metadata.json. Starting with an empty list.")
+            old_metadata = []
+        
+        # Append new metadata (list of dicts) to the old metadata
+        old_metadata.extend(new_metadata)
+        #remove any duplicates
+        old_metadata = [dict(t) for t in {tuple(d.items()) for d in old_metadata}]
+
+
+
+        # Write the combined metadata back to a new JSON file (or overwrite the old one)
+        with open(os.path.join(filepath, "metadata.json"), 'w',encoding='utf-8') as file:
+            json.dump(old_metadata, file,ensure_ascii=False, indent=4)
+
+        # Optionally, handle failed documents if needed
+        for item in failed_documents:
+            print(f"Failed to parse {item}, misparsed metadata = {failed_documents[item]}")
+        pdfParser.load_metadata(old_metadata)
+        pdfParser.get_movement_info()
+        #the metadata is a dict with 4 keys. appending to the metadata dict
+
+            
 
                     
 

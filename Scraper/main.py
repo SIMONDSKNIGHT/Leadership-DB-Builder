@@ -8,10 +8,12 @@ import re
 import os
 import re
 
+ID_SOURCE = "ids.txt"
 
 
 def initialize_dates_and_folder(start_date, end_date, query):
     # Compile regex to match folder names in the format YYYYMMDD~YYYYMMDD-query_term
+    
     pattern = re.compile(r"(\d{8})~(\d{8})-(.+)")
     new_folder_name_with_path = None
     folder_exists = False
@@ -41,6 +43,9 @@ def initialize_dates_and_folder(start_date, end_date, query):
         os.makedirs(new_folder_name_with_path)
 
     return start_date, end_date, new_folder_name_with_path
+
+
+
 def main(start_date, end_date, query):
     start_date, end_date, new_file_path = initialize_dates_and_folder(start_date, end_date, query)
     
@@ -55,11 +60,14 @@ def main(start_date, end_date, query):
     
     if not os.path.exists(DOWNLOAD_PATH):
         os.makedirs(DOWNLOAD_PATH)
+    with open(ID_SOURCE, "r") as f:
+        id_list = f.read().splitlines()
 
 
 
 
-    finder = DocumentFinder(BASE_URL,HEADERS, search_criteria)
+
+    finder = DocumentFinder(BASE_URL,HEADERS, search_criteria, id_list)
     downloader = PDFDownloader(new_file_path,BASE_URL)
 
 
