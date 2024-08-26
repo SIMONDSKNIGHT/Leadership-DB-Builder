@@ -944,13 +944,16 @@ class DataFrameBuilder:
         for filename in os.listdir(filepath):
             
             if check in filename:
-                new_path = filepath + '/' + filename
-                for filename1 in os.listdir(new_path):
+                
+                pdf_folder_location = filepath + '/' + filename
+                for filename1 in os.listdir(pdf_folder_location):
+                    if filename1 == ".DS" or filename1 == ".DS_Store":
+                        continue
                     
                     #name of file without .pdf
 
                     this_file_id = filename1[:-4]
-                    metadata, success= pdfParser.check_pdf_metadata(new_path+'/'+filename1)
+                    metadata, success= pdfParser.check_pdf_metadata(pdf_folder_location+'/'+filename1)
                     
                     if not success:
                         failed_documents[this_file_id] = metadata
@@ -988,7 +991,7 @@ class DataFrameBuilder:
         for item in failed_documents:
             print(f"Failed to parse {item}, misparsed metadata = {failed_documents[item]}")
         pdfParser.load_metadata(old_metadata)
-        pdfParser.get_movement_info()
+        pdfParser.get_movement_info(pdf_folder_location)
         #the metadata is a dict with 4 keys. appending to the metadata dict
 
             

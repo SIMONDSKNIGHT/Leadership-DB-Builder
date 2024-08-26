@@ -162,8 +162,10 @@ class PDFParser:
         else:
             self.metadata = metadata
 
-    def get_movement_info(self):
+    def get_movement_info(self, download_folder):
         self.sort_metadata()
+        self.get_from_tables(download_folder)
+
 
 
     def sort_metadata(self):
@@ -176,8 +178,89 @@ class PDFParser:
                 listfit.append(item)
         self.metadata = listfit
     
-    def get_from_tables(self):
-        pass
+    def get_from_tables(self, download_folder):
+        fail_tracker = []
+        num = 1
+        #sort self metadata by filename
+        self.metadata = sorted(self.metadata, key = lambda x: x['filename'])
+        for item in self.metadata:
+            filepath = f"{download_folder}/{item['filename']}"
+            num, result = self.get_doc_tables(filepath, item, num)
+            if not result:
+                fail_tracker.append(item)
+        self.df.to_csv('AAAAAAAAA.csv')
+        kill = input('kill?: y/n ')
+        if  kill != 'n':
+            #delete every file in the download folder that starts with TEST_{number}.csv where regex is used
+            
+            for file in os.listdir():
+                if re.match(r'TEST_\d+.csv', file):
+                    os.remove(f"{file}")
+        
+    def get_doc_tables(self, file_path, item, num = 1):
+        tracker = False
+        try:
+
+            with pdfplumber.open(file_path) as pdf:
+                
+                for page_number in range(len(pdf.pages)):
+                    page = pdf.pages[page_number]
+                    tables = page.extract_tables()
+                    for table in tables:
+                        columns = table[0]
+                        columns = self.column_cleaner(columns)
+
+                        
+                        df = pd.DataFrame(table[1:], columns=columns)
+                        #drop empty columns
+                        df = df.dropna(axis=1, how='all')
+                        
+
+                        
+                        while  os.path.exists(f'TEST_{num}.csv')==True:
+                            num += 1
+                        df.to_csv(f'TEST_{num}.csv', index=False)
+                        #add new filename column to the dataframe
+                        df['filename'] = f'TEST_{num}.csv'
+                        df['pdf_filename'] = item['filename']
+                        df['Company Name'] = item['company_name']
+                        df['Company Code'] = item['company_code']
+                        df['Document Name'] = item['document_name']
+                        df['File Timestamp'] = item['file_timestamp']
+                        pr_str = f'TEST_{num}.csv for {file_path.split("/")[-1]}'
+                        if tracker == False:
+                           pr_str += ' (First table found)'
+                        print(pr_str)
+                        #if csv is empty
+
+
+                    # Ensure unique column names
+                        df.columns = pd.Index([f"{col}_{i}" if df.columns.duplicated()[i] else col for i, col in enumerate(df.columns)])
+                        if not hasattr(self, 'df') or self.df is None:
+                            self.df = pd.DataFrame()
+                        self.df.columns = pd.Index([f"{col}_{i}" if self.df.columns.duplicated()[i] else col for i, col in enumerate(self.df.columns)])
+
+                        # Reset index to avoid index conflicts
+                        df = df.reset_index(drop=True)
+                        self.df = self.df.reset_index(drop=True)
+                        
+                        # Reindex DataFrames to have the same columns
+                        all_columns = self.df.columns.union(df.columns)
+                        self.df = self.df.reindex(columns=all_columns)
+                        df = df.reindex(columns=all_columns)
+
+                        # Concatenate DataFrames, ignoring the index
+                        if not df.empty:
+                            self.df = pd.concat([self.df, df], ignore_index=True)
+
+                        tracker = True
+            if tracker == False:
+                print(f'No tables found in {file_path.split("/")[-1]}')
+            return num, tracker
+        except:
+            print('error')
+            traceback.print_exc()
+
     def get_from_text(self):
         pass
     def output_df_test(self):
@@ -187,6 +270,83 @@ class PDFParser:
             counter += 1
         #output the dataframe to a csv file
         self.df.to_csv(f'td_info_{counter}.csv')
+
+    def detect_and_reorient_table(self,df):
+        # Example logic to detect misaligned tables
+        misaligned_columns = []
+        
+        for col in df.columns:
+            # Detect if a column name is a date or something unusual
+            if re.match(r'\d{4}年', col) or len(col) > 50:
+                misaligned_columns.append(col)
+        
+        if len(misaligned_columns) > 0:
+            # If we detect misaligned columns, we will extract and reorient the table
+            reoriented_data = {}
+            
+            for col in misaligned_columns:
+                # Extract the data from these misaligned columns
+                col_data = df[col].dropna().tolist()
+                if len(col_data) > 0:
+                    reoriented_data[col] = col_data
+            
+            # Create a new DataFrame from the reoriented data
+            reoriented_df = pd.DataFrame(reoriented_data)
+            
+            # Optionally, drop the misaligned columns from the original DataFrame
+            df.drop(columns=misaligned_columns, inplace=True)
+            
+            return reoriented_df
+        
+        # If no misaligned columns are detected, return None or the original DataFrame
+        return 
+
+    
+    def column_cleaner(self, columns):
+        # Step 1: Strip spaces, full-width spaces, and line breaks
+        stripped_columns = [i.replace(' ', '').replace('　', '').replace('\n', '') if i is not None else '' for i in columns]
+
+        # Step 2: Standardize common column names
+        standardized_columns = []
+        for col in stripped_columns:
+            if '氏名' == col:
+                standardized_columns.append('氏名')
+
+            elif '役職' == col:
+                standardized_columns.append('役職')
+            elif '略歴' ==col:
+                standardized_columns.append('略歴')
+            elif '新任' == col or '就任' in col:
+                standardized_columns.append('新任')
+            elif '旧任' == col or '退任' == col:
+                standardized_columns.append('旧任')
+            elif '生年月日' == col or '誕生日' == col:
+                standardized_columns.append('生年月日')
+            elif '現体制' == col and '新体制' in stripped_columns:
+                #gentaisei is now　旧任 and shintaisei is now 新任
+                standardized_columns.append('旧任')
+            elif '現体制' == col and '新体制' not in stripped_columns:
+                standardized_columns.append('新任')
+            elif '新体制' == col and '現体制' in stripped_columns:
+                standardized_columns.append('新任')
+
+
+
+            else:
+                standardized_columns.append(col)
+
+        # Step 3: Ensure unique column names to avoid conflicts
+        unique_columns = []
+        seen = {}
+        for i, col in enumerate(standardized_columns):
+            if col in seen:
+                seen[col] += 1
+                unique_columns.append(f"{col}_{seen[col]}")
+            else:
+                seen[col] = 0
+                unique_columns.append(col)
+
+        return unique_columns
 
 
 
