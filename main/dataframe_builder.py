@@ -1094,7 +1094,9 @@ class DataFrameBuilder:
             self.tempdf.loc[index, 'Period length'] = f"=(G{index}-F{index})/365"
             self.tempdf.loc[index, 'OP CAGR'] = f"=(Q{index}/P{index})^(1/T{index})-1"
             self.tempdf.loc[index, 'EPS CAGR'] = f"=(S{index}/R{index})^(1/T{index})-1"
-            
+    def to_excel(self, filepath):
+        self.tempdf.to_excel(filepath, index=False, engine='openpyxl')
+
 
 
 

@@ -10,6 +10,7 @@ class CompanyIdentifier:
         self.company_names = company_names
 
     def read_csv(self, csv_file):
+        
         if not csv_file.endswith('.csv'):
             self.mode = 'alt'
             csv_file = self.drop_extraneous(csv_file)

@@ -107,7 +107,9 @@ class WorkHistoryProcessor:
         # name = '関西電力株式会社社外取締役（現在）'
         # print(identifier.calculate_closest_name(name))
         # exit()
-
+        # if company name is nan, return error
+        if pd.isna(company_name):
+            return 'ERROR'
         identifier = ci.CompanyIdentifier(company_name)
  
         
