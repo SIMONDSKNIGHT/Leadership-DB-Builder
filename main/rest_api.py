@@ -31,9 +31,11 @@ class RestApiInterface:
 
             day_files = self.sort_reports(day_files, report_type)
 
+
             self.start_date = (datetime.strptime(self.start_date, "%Y/%m/%d") + dt.timedelta(days=1)).strftime("%Y/%m/%d")
 
             self.reports.extend(day_files)
+
             pbar.update(1)
         print('finished saving reports')
 
@@ -54,23 +56,26 @@ class RestApiInterface:
         
         matching_reports = []
         # print the json
-        
-        for item in day_files['results']:
+        try:
+            for item in day_files['results']:
 
+        
+                if item['docDescription'] == None:
+                    continue
+                elif any(term in item['docDescription'] for term in terms):
+                    if item['secCode'] == None:
+                        continue
+                    if item['secCode'][:4] not in self.id_list:
+                        continue
+
+        
+                # if any (term in item['docDescription'] for term in terms):
+                    matching_reports.append(item)
             
-            if item['docDescription'] == None:
-                continue
-            elif any(term in item['docDescription'] for term in terms):
-                if item['secCode'] == None:
-                    continue
-                if item['secCode'][:4] not in self.id_list:
-                    continue
-
-    
-            # if any (term in item['docDescription'] for term in terms):
-                matching_reports.append(item)
-        
-        return matching_reports
+            return matching_reports
+        except:
+            print('no results')
+            return []
         
     
 
@@ -102,6 +107,7 @@ class RestApiInterface:
     def write_reports(self):
        
         # get the file in the json folder and join it with the new one 
+        #print error if no file is found
         for file in os.listdir('data/json'):
             this_filepath = f'data/json/{file}'
             try:

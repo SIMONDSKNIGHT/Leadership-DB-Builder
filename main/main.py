@@ -62,6 +62,20 @@ def main():
     #         f.write(i+'\n')
     with open ('ids.txt','r') as f:
         ids = f.readlines()
+    #make ids be string and int versions #if possible
+    
+    newids = []
+    for i in ids:
+        inti = i[:4]
+        newids.append(inti)
+        try:
+            inti = int(i)
+            newids.append(inti)
+        except:
+            pass
+    ids += newids
+    
+
 
     if args.test:
 
@@ -103,26 +117,12 @@ def main():
         
     rest_server_interface = rest_api.RestApiInterface(rest_server_url, api_key,ids,backdate,today)
     rest_server_interface.save_reports()
+
     rest_server_interface.write_reports()
-    #TODO  ### add conditional that only does this if its a fresh install###
-    # check if the csv already exists up to a date (()()(())(()())()(()()()()()())(())(()))
-    # csv_file_path = 'data/main.csv'
-    # if os.path.exists(csv_file_path):
-    #     # read the existing csv file
-    #     existing_data = pd.read_csv(csv_file_path)
-    #     # get the latest date in the existing data
-    #     latest_date = existing_data['Date'].max()
-    #     # compare the latest date with the backdate
-    #     if latest_date >= backdate:
-    #         print(f"CSV file already exists up to {latest_date}. Skipping data update.")
-    #         return
-    # else:
-    #     print("CSV file does not exist. Creating new file.")
-    
-    # continue with the rest of the code to update the data and write to the csv file
     rest_server_interface.read_reports()
     reports = rest_server_interface.get_reports()
     # if main.csv does not exist but there is a file in data then read in the old data, append new data and write to 
+    print(len(reports))
     for jsonobject in tqdm(reports):
 
         try:
