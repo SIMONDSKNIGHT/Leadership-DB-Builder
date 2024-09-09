@@ -37,29 +37,31 @@ def main():
 
     #####
     if not args.default:
-        excel_filepath= input('address of excel file: ')
-        rest_server_url = input('address of rest server: ')
+        excel_filepath= input('address of excel file: DEPRICATED, REFER TO ids.txt')
+        rest_server_url = input("address of rest server(Hint it's https://api.edinet-fsa.go.jp/api/v2/documents. try --default): ")
     else:
         excel_filepath = "/Users/dagafed/Library/CloudStorage/OneDrive-Personal/Documents/top 500 by liquidity.xlsx"
         rest_server_url = 'https://api.edinet-fsa.go.jp/api/v2/documents'
     #####
-
-    excel_parser = excel_reader.ExcelReader()
-    try:
-        excel_parser.read(excel_filepath)
-    except:
-        print('failure')
-        Exception('Error setting rest server')
-        #kill process
-        sys.exit()
-    ids = []
-    for i in excel_parser.get_file_ids():
-        ids.append(i[0][4:])
+    #### the excelparser is currently a 
+    # excel_parser = excel_reader.ExcelReader()
+    # try:
+    #     excel_parser.read(excel_filepath)
+    # except:
+    #     print('failure')
+    #     Exception('Error setting rest server')
+    #     #kill process
+    #     sys.exit()
+    # ids = []
+    # for i in excel_parser.get_file_ids():
+    #     ids.append(i[0][4:])
         
-    del excel_parser
-    with open('ids.txt','w') as f:
-        for i in ids:
-            f.write(i+'\n')
+    # del excel_parser
+    # with open('ids.txt','w') as f:
+    #     for i in ids:
+    #         f.write(i+'\n')
+    with open ('ids.txt','r') as f:
+        ids = f.readlines()
 
     if args.test:
 
