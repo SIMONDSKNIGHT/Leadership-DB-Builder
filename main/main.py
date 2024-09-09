@@ -158,7 +158,8 @@ def main():
     # ###this is the code for the downloading of the CSV's
 
     # #for failed parsing, consider downloading the information from the PDF's
-
+    if not os.path.exists(dl_file_path):
+        os.makedirs(dl_file_path)
     files_sorted = sorted(os.listdir(dl_file_path))
     for tseno in files_sorted:
         success = False
