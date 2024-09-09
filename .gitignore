@@ -119,6 +119,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.xlsx
 
 # Spyder project settings
 .spyderproject
@@ -201,3 +202,4 @@ txt
 /data
 /metadata_fixer
 /temp_hider
+
