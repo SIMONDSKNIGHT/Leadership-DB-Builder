@@ -14,6 +14,7 @@ from dateutil.relativedelta import relativedelta
 import re
 import company_identifier as ci
 from td_pdf_parser import PDFParser
+import chardet
 
 
 DOWNLOADS_FILE = "Scraper/downloads"
@@ -543,10 +544,12 @@ class DataFrameBuilder:
         return director_dict
     def drop_auditors(self):
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役']
+        self.sumdf = self.sumdf[self.sumdf['Job Title'] != ' 監査役']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役員']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役員']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役等']
+        self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役（非常勤）']
     def to_csv(self, filepath=''):
         if not self.failed.empty:
             self.sumdf.to_csv("debug.csv", index=False)
@@ -850,7 +853,43 @@ class DataFrameBuilder:
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '常勤監査役員']
         self.sumdf = self.sumdf[self.sumdf['Job Title'] != '監査役等']
 
-        
+    def encoding_fixer(self, encoding=None, dataf='tempdf'):
+        if dataf == 'tempdf':
+            # Detect the encoding of the DataFrame
+            detected_encoding = chardet.detect(self.tempdf.to_csv(index=False).encode())['encoding']
+            
+            # Use detected encoding if none was provided
+            encoding = encoding if encoding else detected_encoding
+            
+            # If the encoding is utf-16le, change it to utf-8 for Excel compatibility
+            if encoding.lower() == 'utf-16le':
+                encoding = 'utf-8'
+
+            # Re-encode the DataFrame and save
+            self.tempdf.to_csv('fixed_encoding_tempdf.csv', encoding=encoding, index=False)
+            print(f"DataFrame re-encoded to {encoding} and saved as 'fixed_encoding_tempdf.csv'.")
+
+        else:
+            print("Implement for other DataFrames as needed")
+
+
+    def tse_fixer(self, dataf = 'tempdf'):
+        if dataf == 'tempdf':
+            df = self.tempdf
+            #find columns that contain TSE numbers
+            columns = df.columns
+            columns = list(columns)
+            columns = [c for c in columns if 'TSE' in c]
+            #set the columns to be the first 4 values in the string representation in the df
+
+            for column in columns:
+                df[column] = df[column].astype(str)
+                df[column] = df[column].str[:4]
+            self.tempdf = df
+        else:
+            print("Implement for otherwise")
+
+
 
     def verifier(self,text):
         if re.search(r'::$', text):
@@ -904,7 +943,7 @@ class DataFrameBuilder:
             #if their role column is empty, move that value to the Last Company Name column
             # if row['role']!='':
          #reorder columns so that work history is last)
-        self.tempdf = self.tempdf[['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title','Year Started At Last Company', 'Year Joined', 'Last Company Name', 'Last Company TSE', 'Last Company Conf', 'role','Work History']]
+        self.tempdf = self.tempdf[['TSE:', 'Company Name', 'Name', 'DOB', 'Job Title','Year Started At Last Company', 'Year Joined', 'Last Company Name', 'Last Company TSE', 'Last Company Conf', 'role','Work History', 'document code']]
             #     self.tempdf.loc[index, 'Last Company Name'] = self.tempdf.loc[index, 'role']
         #drop role column
     
@@ -927,11 +966,12 @@ class DataFrameBuilder:
         print(len(df_filtered))
         df_filtered = df_filtered[df_filtered['Last Company Name'] != 'CURR']
         print(len(df_filtered))
-        self.tempdf = df_filtered[df_filtered['Year Joined'] > date][['TSE:', 'Company Name', 'Job Title', 'Name', 'DOB', 'Year Joined','Last Company Name', 'Last Company TSE', 'role','Work History', 'Year Started At Last Company']]
+        self.tempdf = df_filtered[df_filtered['Year Joined'] > date][['TSE:', 'Company Name', 'Job Title', 'Name', 'DOB', 'Year Joined','Last Company Name', 'Last Company TSE', 'role','Work History', 'Year Started At Last Company','document code']]
         print(len(self.tempdf))
         
     def output_df(self, filepath):
-        self.tempdf.to_csv(filepath, index=False)
+        self.tempdf.to_csv(filepath, encoding='utf-8-sig', index=False)
+
 
 #//////// Code to do with the parsing of information from the TDNet information
 
@@ -993,12 +1033,68 @@ class DataFrameBuilder:
         pdfParser.load_metadata(old_metadata)
         pdfParser.get_movement_info(pdf_folder_location)
         #the metadata is a dict with 4 keys. appending to the metadata dict
-
+        
+    def tse_matcher(self):
+        with open('file_ids.csv', 'r') as file:
+            file_ids = pd.read_csv(file)
+        
+        # Make all file ids just the last 4 digits
+        file_ids['File ID'] = file_ids['File ID'].apply(lambda x: str(x)[-4:])
+        
+        # Rename 'Last Company Name' to 'Previous Role'
+        self.tempdf.rename(columns={'Last Company Name': 'Previous Role'}, inplace=True)
+        
+        # Add a 'Company Name:' column if it doesn't exist
+        if 'Last Company Name' not in self.tempdf.columns:
+            self.tempdf['Last Company Name'] = ""
+        
+        print(file_ids)  # For debugging purposes
+        
+        for index, row in self.tempdf.iterrows():
+            # Extract the relevant rows from file_ids based on the document code
+            matching_row = file_ids[file_ids['File ID'] == str(row['TSE:'])]
             
+            if not matching_row.empty:
+                # If a matching row is found, assign the value
+                self.tempdf.loc[index, 'LastCompany Name'] = matching_row['Value'].iloc[0]
+            else:
+                # Handle case where no matching row is found (for debugging purposes)
+                print(f"No match found for document code: {row['document code']}")
 
-                    
+################## CODE RELATED TO CAPITALIQ INTEGRATION ##################
 
 
+    def capitaliq_columns(self):
+        #add the following columns and their excel formulas so that they may be parsed
+        #column names are Sharepx start    Sharepx end	 OP start	OP end	EPS start	EPS end	Period length	OP CAGR	EPS CAGR	Notes
+        # column values are =@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_LASTSALEPRICE", F4),=@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_LASTSALEPRICE", G4),
+        # =@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_OPER_INC", IQ_LTM, F4),=@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_OPER_INC", IQ_LTM, G4),
+        # =@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_BASIC_EPS_INCL", IQ_LTM, F4),=@ciqfunctions.udf.CIQ("TSE:"&$I4, "IQ_BASIC_EPS_INCL", IQ_LTM, G4),
+        # =(G4-F4)/365, =(Q4/P4)^(1/T4)-1, =(S4/R4)^(1/T4)-1
+        self.tempdf['Sharepx start'] = ""
+        self.tempdf['Sharepx end'] = ""
+        self.tempdf['OP start'] = ""
+        self.tempdf['OP end'] = ""
+        self.tempdf['EPS start'] = ""
+        self.tempdf['EPS end'] = ""
+        self.tempdf['Period length'] = ""
+        self.tempdf['OP CAGR'] = ""
+        self.tempdf['EPS CAGR'] = ""
+        self.tempdf['Notes'] = ""
+        ##input the text for the formulas so that they can be opened in excel
+        for index, row in self.tempdf.iterrows():
+            #change value of each row to ciq function
+
+            self.tempdf.loc[index, 'Sharepx start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
+            self.tempdf.loc[index, 'Sharepx end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
+            self.tempdf.loc[index, 'OP start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
+            self.tempdf.loc[index, 'OP end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
+            self.tempdf.loc[index, 'EPS start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
+            self.tempdf.loc[index, 'EPS end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
+            self.tempdf.loc[index, 'Period length'] = f"=(G{index}-F{index})/365"
+            self.tempdf.loc[index, 'OP CAGR'] = f"=(Q{index}/P{index})^(1/T{index})-1"
+            self.tempdf.loc[index, 'EPS CAGR'] = f"=(S{index}/R{index})^(1/T{index})-1"
+            
 
 
 

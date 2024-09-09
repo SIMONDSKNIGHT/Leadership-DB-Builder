@@ -21,6 +21,7 @@ class QParser():
         self.movedf = pd.DataFrame(columns=['TSE:','document code'])
         self.joindf = pd.DataFrame(columns=['TSE:','document code'])
     def check_for_changes(self):
+        #ensure output is deleted
         try:
             zip_dir = os.path.dirname(self.file_path)
             with zipfile.ZipFile(self.file_path, 'r') as zip_ref:
@@ -67,10 +68,10 @@ class QParser():
                             continue
                     # force open the pdf file in the csvfile folder in preview for mac
                     # to see the contents of the csv file, note the directory address is in a variable called csv_file
-
+            os.remove(self.file_path)
             return officer_info
 
-                    # rows.append(index)
+                    
                 
             
             
@@ -78,6 +79,7 @@ class QParser():
             print(f"Error parsing CSV file: {self.file_path} ", e)
             with open('failed.txt', 'a') as file:
                 file.write(f"Error parsing CSV file: {self.file_path} {e}")
+            os.remove(self.file_path)
             shutil.rmtree(new_dir)
     def remove_pdf_restrictions(self):
         if not self.pdf:
