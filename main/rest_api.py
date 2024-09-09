@@ -137,7 +137,7 @@ class RestApiInterface:
         if os.path.exists(local_filename):
             print(f"File {local_filename} already exists. Skipping download.")
             return
-        time.sleep(1)
+        time.sleep(0.1)
         response = requests.get(f'{self.rest_server_url}/{doc_id}?type={mode}&Subscription-Key={self.api_key}')
         
         
