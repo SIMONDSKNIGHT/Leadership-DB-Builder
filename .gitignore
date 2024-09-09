@@ -152,7 +152,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 # Custom ignore
-file_ids.csv
+
 EdinetcodeDlInfo.csv
 file_ids_with_edinet.csv
 /files/
@@ -165,7 +165,7 @@ files/
 doc_id_list.csv
 doc_id_list_with_edinet.csv
 doc_id_list.txt
-file_ids.csv
+
 /main/api_key.txt
 rejected.txt
 rejected.csv
