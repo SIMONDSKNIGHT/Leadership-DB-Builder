@@ -1082,20 +1082,27 @@ class DataFrameBuilder:
         self.tempdf['EPS CAGR'] = ""
         self.tempdf['Notes'] = ""
         ##input the text for the formulas so that they can be opened in excel
-        for index, row in self.tempdf.iterrows():
+        index= 1
+        for falseindex, row in self.tempdf.iterrows():
             #change value of each row to ciq function
-
-            self.tempdf.loc[index, 'Sharepx start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
-            self.tempdf.loc[index, 'Sharepx end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
-            self.tempdf.loc[index, 'OP start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
-            self.tempdf.loc[index, 'OP end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
-            self.tempdf.loc[index, 'EPS start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
-            self.tempdf.loc[index, 'EPS end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
-            self.tempdf.loc[index, 'Period length'] = f"=(G{index}-F{index})/365"
-            self.tempdf.loc[index, 'OP CAGR'] = f"=(Q{index}/P{index})^(1/T{index})-1"
-            self.tempdf.loc[index, 'EPS CAGR'] = f"=(S{index}/R{index})^(1/T{index})-1"
+            index+=1
+            self.tempdf.loc[falseindex, 'Sharepx start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
+            self.tempdf.loc[falseindex, 'Sharepx end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_LASTSALEPRICE\", G{index})"
+            self.tempdf.loc[falseindex, 'OP start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
+            self.tempdf.loc[falseindex, 'OP end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_OPER_INC\", IQ_LTM, G{index})"
+            self.tempdf.loc[falseindex, 'EPS start'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
+            self.tempdf.loc[falseindex, 'EPS end'] = f"=CIQ(\"TSE:\"&F{index}, \"IQ_BASIC_EPS_INCL\", IQ_LTM, G{index})"
+            self.tempdf.loc[falseindex, 'Period length'] = f"=(G{index}-F{index})/365"
+            self.tempdf.loc[falseindex, 'OP CAGR'] = f"=(Q{index}/P{index})^(1/T{index})-1"
+            self.tempdf.loc[falseindex, 'EPS CAGR'] = f"=(S{index}/R{index})^(1/T{index})-1"
     def to_excel(self, filepath):
+        self.column_dates_reformat()
+
         self.tempdf.to_excel(filepath, index=False, engine='openpyxl')
+    def column_dates_reformat(self):
+        #reformat columns 'Year Started At Last Company' and 'Year Joined' to yyyy/mm/dd by defaulting to the 01st
+        self.tempdf['Year Started At Last Company'] = self.tempdf['Year Started At Last Company'].apply(lambda x: x + '/01' if len(x) == 7 else x)
+        self.tempdf['Year Joined'] = self.tempdf['Year Joined'].apply(lambda x: x + '/01' if len(x) == 7 else x)
 
 
 
